@@ -1,0 +1,9 @@
+parts/
+rally/
+tmp_*
+tmp/
+.private*
+.terraform*
+*.tfstate*
+__pycache__/
+terraform.tfvars
