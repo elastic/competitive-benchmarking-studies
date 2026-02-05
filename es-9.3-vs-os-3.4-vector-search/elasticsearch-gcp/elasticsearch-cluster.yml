@@ -1,0 +1,59 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: es-cluster
+spec:
+  version: 9.3.0
+  http:
+    service:
+      spec:
+        type: LoadBalancer
+  nodeSets:
+    - name: default
+      count: 3
+      podTemplate:
+        spec:
+          nodeSelector:
+            cloud.google.com/gke-nodepool: es-context-engineering-nodepool
+          initContainers:
+            - name: sysctl
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              command: ["sh", "-c", "sysctl -w vm.max_map_count=262144"]
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  memory: 4Gi
+                  cpu: 1
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 50Gi
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: es-cluster
+spec:
+  version: 9.3.0
+  http:
+    service:
+      spec:
+        type: LoadBalancer
+  podTemplate:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: kb-context-engineering-nodepool
+  count: 1
+  elasticsearchRef:
+    name: es-cluster
+  config:
+    xpack.security.session.idleTimeout: "7d"
+    xpack.security.session.lifespan: "1Y"
