@@ -10,11 +10,11 @@ spec:
         type: LoadBalancer
   nodeSets:
     - name: default
-      count: 3
+      count: 6
       podTemplate:
         spec:
           nodeSelector:
-            cloud.google.com/gke-nodepool: es-context-engineering-nodepool
+            cloud.google.com/gke-nodepool: es-context-engineering-nodepool-large
           initContainers:
             - name: sysctl
               securityContext:
@@ -24,9 +24,12 @@ spec:
           containers:
             - name: elasticsearch
               resources:
+                requests:
+                  memory: 56Gi
+                  cpu: 15
                 limits:
-                  memory: 4Gi
-                  cpu: 1
+                  memory: 56Gi
+                  cpu: 15
       volumeClaimTemplates:
         - metadata:
             name: elasticsearch-data
@@ -50,7 +53,7 @@ spec:
   podTemplate:
     spec:
       nodeSelector:
-        cloud.google.com/gke-nodepool: kb-context-engineering-nodepool
+        cloud.google.com/gke-nodepool: kb-context-engineering-nodepool-large
   count: 1
   elasticsearchRef:
     name: es-cluster

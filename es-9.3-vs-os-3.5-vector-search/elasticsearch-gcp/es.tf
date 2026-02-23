@@ -1,5 +1,5 @@
 resource "google_container_cluster" "es_context_engineering_benchmark" {
-  name                = "es-context-engineering-benchmark"
+  name                = "es-context-engineering-benchmark-large"
   location            = "us-central1-a"
   deletion_protection = false
 
@@ -8,23 +8,23 @@ resource "google_container_cluster" "es_context_engineering_benchmark" {
 }
 
 resource "google_container_node_pool" "es_context_engineering_nodes" {
-  name       = "es-context-engineering-nodepool"
+  name       = "es-context-engineering-nodepool-large"
   cluster    = google_container_cluster.es_context_engineering_benchmark.id
-  node_count = 3
+  node_count = 6
 
   node_config {
-    machine_type = "e2-standard-2"
-    disk_size_gb = 50
+    machine_type = "e2-standard-16"
+    disk_size_gb = 200
   }
 }
 
 resource "google_container_node_pool" "kb_context_engineering_node" {
-  name       = "kb-context-engineering-nodepool"
+  name       = "kb-context-engineering-nodepool-large"
   cluster    = google_container_cluster.es_context_engineering_benchmark.id
   node_count = 1
 
   node_config {
     machine_type = "e2-medium"
-    disk_size_gb = 12
+    disk_size_gb = 120
   }
 }

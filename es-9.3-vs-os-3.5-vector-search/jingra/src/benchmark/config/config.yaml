@@ -1,0 +1,65 @@
+engine: "elasticsearch"
+
+elasticsearch:
+  url_env: "ELASTIC_URL"
+  user_env: "ELASTIC_USER"
+  password_env: "ELASTIC_PASSWORD"
+
+opensearch:
+  url_env: "OPENSEARCH_URL"
+  user_env: "OPENSEARCH_USER"
+  password_env: "OPENSEARCH_PASSWORD"
+
+dataset: "ecommerce-search-128"
+
+datasets:
+  ecommerce-search-128:
+    type: "parquet"
+    index_name: "ecommerce_search_catalog_128"
+    vector_size: 128
+    distance: "cosine"
+    path:
+      data_path: "datasets/ecommerce-search-catalog-embedding-128-filters/data.parquet"
+      queries_path: "datasets/ecommerce-search-catalog-embedding-128-filters/queries.parquet"
+    data_mapping:
+      id_field: "catalog_id"
+      vector_field: "search_catalog_embedding"
+    queries_mapping:
+      query_vector_field: "search_catalog_embedding"
+      ground_truth_field: "closest_ids"
+      conditions_field: "conditions"
+    schema:
+      valid: "bool"
+
+s_n_r_groups:
+  recall@100:
+    - "100_250_1"
+    - "100_500_1"
+    - "100_750_1"
+    - "100_1000_1"
+    - "100_1500_1"
+    - "100_2000_1"
+    - "100_2500_1"
+    - "100_3000_1"
+    - "100_4000_1"
+    - "100_5000_1"
+    - "100_6000_1"
+    - "100_7000_1"
+    - "100_8000_1"
+    - "100_9000_1"
+    - "100_10000_1"
+
+# Evaluation settings
+evaluation:
+  warmup_workers: 16 # Parallel workers for warmup queries
+  measurement_workers: 16 # Parallel workers for measurement queries
+  warmup_rounds: 3 # Warmup rounds per s_n_r config before measurement
+  measurement_rounds: 1 # Measurement rounds per s_n_r config (last round is kept)
+  retrieval_methods: ["dense_retrieval_response"]
+
+# Output paths (relative to jingra directory)
+output:
+  results_dir: "results"
+
+# .env file location
+dotenv_path: "src/benchmark/.env"

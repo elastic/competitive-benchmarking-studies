@@ -6,7 +6,6 @@ metadata:
   namespace: default
 spec:
   security:
-    config:
     tls:
       http:
         generate: true
@@ -17,18 +16,18 @@ spec:
     httpPort: 9200
     serviceName: os-cluster
     setVMMaxMapCount: true
-    version: 3.4.0
+    version: 3.5.0
     pluginsList: []
     drainDataNodes: true
   dashboards:
     tls:
       enable: true
       generate: true
-    version: 3.4.0
+    version: 3.5.0
     enable: true
     replicas: 1
     nodeSelector:
-      cloud.google.com/gke-nodepool: osd-context-engineering-nodepool
+      cloud.google.com/gke-nodepool: osd-context-engineering-nodepool-large
     resources:
       requests:
         memory: "2Gi"
@@ -38,18 +37,18 @@ spec:
         cpu: "500m"
   nodePools:
     - component: data
-      replicas: 3
+      replicas: 6
       nodeSelector:
-        cloud.google.com/gke-nodepool: os-context-engineering-nodepool
+        cloud.google.com/gke-nodepool: os-context-engineering-nodepool-large
       diskSize: "50Gi"
-      jvm: -Xmx2G -Xms2G
+      jvm: -Xmx28G -Xms28G
       resources:
         requests:
-          memory: "4Gi"
-          cpu: 1
+          memory: "56Gi"
+          cpu: 15
         limits:
-          memory: "4Gi"
-          cpu: 1
+          memory: "56Gi"
+          cpu: 15
       roles:
         - "data"
         - "cluster_manager"
@@ -79,6 +78,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: opensearch-dashboards-service
+  namespace: default
 spec:
   type: ClusterIP
   selector:
