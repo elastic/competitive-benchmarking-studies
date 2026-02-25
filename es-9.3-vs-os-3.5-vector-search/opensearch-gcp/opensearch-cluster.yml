@@ -1,0 +1,89 @@
+---
+apiVersion: opensearch.opster.io/v1
+kind: OpenSearchCluster
+metadata:
+  name: os-cluster
+  namespace: default
+spec:
+  security:
+    tls:
+      http:
+        generate: true
+      transport:
+        generate: true
+        perNode: true
+  general:
+    httpPort: 9200
+    serviceName: os-cluster
+    setVMMaxMapCount: true
+    version: 3.5.0
+    pluginsList: []
+    drainDataNodes: true
+  dashboards:
+    tls:
+      enable: true
+      generate: true
+    version: 3.5.0
+    enable: true
+    replicas: 1
+    nodeSelector:
+      cloud.google.com/gke-nodepool: osd-context-engineering-nodepool-large
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "500m"
+  nodePools:
+    - component: data
+      replicas: 6
+      nodeSelector:
+        cloud.google.com/gke-nodepool: os-context-engineering-nodepool-large
+      diskSize: "50Gi"
+      jvm: -Xmx28G -Xms28G
+      resources:
+        requests:
+          memory: "56Gi"
+          cpu: 15
+        limits:
+          memory: "56Gi"
+          cpu: 15
+      roles:
+        - "data"
+        - "cluster_manager"
+        - "ingest"
+        - "ml"
+      persistence:
+        pvc:
+          storageClass: premium-rwo
+          accessModes:
+            - ReadWriteOnce
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: os-cluster-service
+  namespace: default
+spec:
+  type: LoadBalancer
+  selector:
+    opster.io/opensearch-nodepool: data
+  ports:
+    - protocol: TCP
+      port: 9200
+      targetPort: 9200
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-dashboards-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    opensearch.cluster.dashboards: os-cluster
+  ports:
+    - protocol: TCP
+      port: 5601
+      targetPort: 5601
