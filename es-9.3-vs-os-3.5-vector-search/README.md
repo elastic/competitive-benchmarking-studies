@@ -6,7 +6,7 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 
 |                     | Elasticsearch 9.3         | OpenSearch 3.5               |
 | ------------------- | ------------------------- | ---------------------------- |
-| **Index Type**      | BBQ HNSW                  | FAISS HNSW (32x compression) |
+| **Index Type**      | BBQ HNSW                  | FAISS (32x compression) |
 | **HNSW Parameters** | m=16, ef_construction=100 | m=16, ef_construction=100    |
 | **Similarity**      | Cosine                    | Cosine                       |
 

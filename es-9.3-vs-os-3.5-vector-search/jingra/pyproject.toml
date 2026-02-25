@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Comprehensive benchmarking tool for various search, vector search, observability, and security use cases across multiple engines."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 authors = [
     {name = "Benchmark Team"}
 ]
