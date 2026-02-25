@@ -15,8 +15,8 @@ Compares ANN vector search performance using quantized HNSW indexes:
 
 | Recall Target | ES 9.3 Server Latency | OS 3.5 Server Latency |
 | ------------- | --------------------- | --------------------- |
-| ~92%          | 14ms                  | 95ms                  |
-| ~98%          | 90ms                  | 811ms                 |
+| ~93%          | 19ms                  | 95ms                  |
+| ~98.5%        | 90ms                  | 811ms                 |
 
 See the [full benchmark details](es-9.3-vs-os-3.5-vector-search/README.md).
 
