@@ -4,7 +4,7 @@ A collection of performance benchmarks comparing search and database technologie
 
 ## Benchmarks
 
-### [Elasticsearch 9.3 vs OpenSearch 3.5: Vector Search](es-9.3-vs-os-3.5-vector-search/)
+### [Elasticsearch 9.3 vs OpenSearch 3.5: Vector Search](studies/2026-02-es-9.3-vs-os-3.5/)
 
 Compares ANN vector search performance using quantized HNSW indexes:
 
@@ -18,7 +18,7 @@ Compares ANN vector search performance using quantized HNSW indexes:
 | ~93%          | 19ms                  | 95ms                  |
 | ~98.5%        | 90ms                  | 811ms                 |
 
-See the [full benchmark details](es-9.3-vs-os-3.5-vector-search/README.md).
+See the [full benchmark details](studies/2026-02-es-9.3-vs-os-3.5/README.md).
 
 ## Methodology
 
