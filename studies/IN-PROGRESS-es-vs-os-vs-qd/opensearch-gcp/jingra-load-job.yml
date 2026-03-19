@@ -1,0 +1,59 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jingra-load
+  namespace: default
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: OnFailure
+      containers:
+        - name: jingra
+          image: docker.elastic.co/employees/sachinfrayne/jingra:$JINGRA_TAG
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          args:
+            [
+              "--config",
+              "/config/jingra.yaml",
+              "--delete-index",
+              "--ingest-data",
+            ]
+          env:
+            - name: JINGRA_VERSION
+              value: "$JINGRA_TAG"
+            - name: OPENSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: os-cluster-opensearch-cluster-admin-password
+                  key: password
+          envFrom:
+            - secretRef:
+                name: jingra-os-credentials
+            - secretRef:
+                name: jingra-dataset-urls
+            - secretRef:
+                name: jingra-results-cluster
+                optional: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: results
+              mountPath: /app/results
+          resources:
+            requests:
+              memory: "10Gi"
+              cpu: "3"
+            limits:
+              memory: "10Gi"
+              cpu: "3"
+      volumes:
+        - name: config
+          configMap:
+            name: jingra-config
+        - name: results
+          emptyDir: {}

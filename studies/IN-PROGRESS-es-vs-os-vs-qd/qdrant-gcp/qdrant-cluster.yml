@@ -1,0 +1,141 @@
+---
+# Entrypoint: first peer (qdrant-0) uses --uri; others use --bootstrap. See RESTORE.md if reverted.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qdrant-cluster-entrypoint
+  namespace: default
+data:
+  entrypoint.sh: |
+    #!/bin/sh
+    set -e
+    BOOTSTRAP_URI="http://qdrant-0.qdrant-headless.default.svc:6335"
+    if [ "$HOSTNAME" = "qdrant-0" ]; then
+      exec /qdrant/qdrant --uri "$BOOTSTRAP_URI"
+    else
+      exec /qdrant/qdrant --bootstrap "$BOOTSTRAP_URI"
+    fi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qdrant
+  namespace: default
+spec:
+  serviceName: qdrant-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: qdrant-context-engineering-nodepool
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qdrant
+                topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: entrypoint
+          configMap:
+            name: qdrant-cluster-entrypoint
+            defaultMode: 0755
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:latest
+          command: ["/bin/sh", "/qdrant/entrypoint.sh"]
+          env:
+            - name: QDRANT__CLUSTER__ENABLED
+              value: "true"
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+            - containerPort: 6335
+              name: p2p
+          volumeMounts:
+            - name: qdrant-storage
+              mountPath: /qdrant/storage
+            - name: entrypoint
+              mountPath: /qdrant/entrypoint.sh
+              subPath: entrypoint.sh
+              readOnly: true
+          resources:
+            requests:
+              memory: "12Gi"
+              cpu: 3
+            limits:
+              memory: "12Gi"
+              cpu: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 6333
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: qdrant-storage
+      spec:
+        storageClassName: premium-rwo
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+---
+# Headless service for StatefulSet pod DNS and cluster P2P (port 6335)
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-headless
+  namespace: default
+spec:
+  clusterIP: None
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+    - name: p2p
+      port: 6335
+      targetPort: 6335
+---
+# LoadBalancer service for external access to Qdrant HTTP API (no P2P)
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-service
+  namespace: default
+spec:
+  type: LoadBalancer
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      protocol: TCP
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      protocol: TCP
+      port: 6334
+      targetPort: 6334

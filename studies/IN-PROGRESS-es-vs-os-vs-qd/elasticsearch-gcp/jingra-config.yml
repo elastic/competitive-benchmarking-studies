@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jingra-config
+  namespace: default
+data:
+  jingra.yaml: |
+    engine: "elasticsearch"
+
+    elasticsearch:
+      url_env: "ELASTIC_URL"
+      user_env: "ELASTIC_USER"
+      password_env: "ELASTIC_PASSWORD"
+
+    dataset: "ecommerce-search-128"
+
+    datasets:
+      ecommerce-search-128:
+        type: "parquet"
+        index_name: "ecommerce_search_catalog_128"
+        vector_size: 128
+        distance: "cosine"
+        schema_name: "ecommerce_filtered_knn"
+        query_name: "ecommerce_filtered_knn"
+        path:
+          data_path: "datasets/ecommerce-search-catalog-embedding-128-filters/data.parquet"
+          queries_path: "datasets/ecommerce-search-catalog-embedding-128-filters/queries.parquet"
+          data_url_env: "DATASET_DATA_URL"
+          queries_url_env: "DATASET_QUERIES_URL"
+        data_mapping:
+          id_field: "catalog_id"
+          vector_field: "search_catalog_embedding"
+        queries_mapping:
+          query_vector_field: "search_catalog_embedding"
+          ground_truth_field: "closest_ids"
+          conditions_field: "conditions"
+        param_groups:
+          recall@100:
+            - {size: 100, k: 100, num_candidates: 250, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 500, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 750, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 1000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 1500, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 2000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 2500, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 3000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 4000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 5000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 6000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 7000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 8000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 9000, rescore: 1}
+            - {size: 100, k: 100, num_candidates: 10000, rescore: 1}
+
+    evaluation:
+      warmup_workers: 4
+      measurement_workers: 4
+      warmup_rounds: 1
+      measurement_rounds: 1
+      retrieval_methods: ["dense_retrieval_response"]
+
+    output:
+      results_dir: "results"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jingra-es-credentials
+  namespace: default
+type: Opaque
+stringData:
+  # Must be Elasticsearch HTTP (port 9200), not Kibana (5601). Use internal service for in-cluster Job (stable, no LoadBalancer).
+  ELASTIC_URL: "https://es-cluster-es-internal-http.default.svc.cluster.local:9200"
+  ELASTIC_USER: "elastic"

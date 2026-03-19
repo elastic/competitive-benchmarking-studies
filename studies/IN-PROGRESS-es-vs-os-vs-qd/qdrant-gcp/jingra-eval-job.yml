@@ -1,0 +1,50 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jingra-eval
+  namespace: default
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: jingra-nodepool
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Never
+      containers:
+        - name: jingra
+          image: docker.elastic.co/employees/sachinfrayne/jingra:$JINGRA_TAG
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          args: ["--config", "/config/jingra.yaml", "--evaluate-retrieval"]
+          env:
+            - name: JINGRA_VERSION
+              value: "$JINGRA_TAG"
+          envFrom:
+            - secretRef:
+                name: jingra-qdrant-credentials
+            - secretRef:
+                name: jingra-dataset-urls
+            - secretRef:
+                name: jingra-results-cluster
+                optional: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: results
+              mountPath: /app/results
+          resources:
+            requests:
+              memory: "10Gi"
+              cpu: "3"
+            limits:
+              memory: "10Gi"
+              cpu: "3"
+      volumes:
+        - name: config
+          configMap:
+            name: jingra-config
+        - name: results
+          emptyDir: {}
