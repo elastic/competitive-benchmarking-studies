@@ -30,14 +30,23 @@ def parse_engine_variant(filename: str) -> tuple[str, str]:
     return "Other", base
 
 
+def _parse_param_key(param_key: str) -> dict[str, str]:
+    """Parse param_key like 'k=100_num_candidates=250_rescore=1_size=100' into dict."""
+    result = {}
+    for part in str(param_key).split("_"):
+        if "=" in part:
+            key, val = part.split("=", 1)
+            result[key] = val
+    return result
+
+
 def add_k_n_rescore_cols(df: pd.DataFrame) -> pd.DataFrame:
-    parts = df["s_n_r_value"].astype(str).str.split("_", expand=True)
-    if parts.shape[1] < 3:
-        raise ValueError("s_n_r_value must look like 'k_n_rescore' e.g. '10_12_2'")
+    """Extract k, num_candidates (n), and rescore from param_key column."""
     df = df.copy()
-    df["k"] = parts[0]
-    df["n"] = parts[1]
-    df["rescore"] = parts[2]
+    parsed = df["param_key"].apply(_parse_param_key)
+    df["k"] = parsed.apply(lambda d: d.get("k", d.get("size", "10")))
+    df["n"] = parsed.apply(lambda d: d.get("num_candidates", "0"))
+    df["rescore"] = parsed.apply(lambda d: d.get("rescore", "1"))
     df["label"] = df["k"].astype(str) + "-" + df["n"].astype(str)
     return df
 
@@ -79,11 +88,12 @@ def detect_rescore_values(folder_path: str, at_val: str) -> list[str]:
         except Exception:
             logger.exception("Error reading %s", name)
             continue
-        if "s_n_r_value" not in df.columns:
+        if "param_key" not in df.columns:
             continue
-        parts = df["s_n_r_value"].astype(str).str.split("_", expand=True)
-        if parts.shape[1] >= 3:
-            values.update(parts[2].dropna().astype(str).unique().tolist())
+        for param_key in df["param_key"].dropna().astype(str).unique():
+            parsed = _parse_param_key(param_key)
+            if "rescore" in parsed:
+                values.add(parsed["rescore"])
     return sorted(values, key=lambda v: (0, int(v)) if v.isdigit() else (1, v))
 
 
@@ -103,7 +113,7 @@ def build_pivot_for_at(
         path = os.path.join(folder_path, name)
         try:
             df = pd.read_csv(path)
-            if "s_n_r_value" in df.columns and "recall" in df.columns:
+            if "param_key" in df.columns and "recall" in df.columns:
                 df = add_k_n_rescore_cols(df)
                 df_filtered = df[df["rescore"].astype(str) == str(rescore_value)]
                 if not df_filtered.empty:

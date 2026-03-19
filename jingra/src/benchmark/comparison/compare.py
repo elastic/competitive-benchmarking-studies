@@ -91,12 +91,12 @@ def generate_comparison(input_folder_path: str, output_folder_path: str, latency
         for at_val in common_at_vals:
             es_df = es_by_at[at_val].copy()
             os_df = os_by_at[at_val].copy()
-            needed = ("s_n_r_value", "recall", latency_col, "throughput")
+            needed = ("param_key", "recall", latency_col, "throughput")
             if not _require_columns(es_df, needed, context=f"ES @{at_val}"):
                 continue
             if not _require_columns(os_df, needed, context=f"OS @{at_val}"):
                 continue
-            merged = es_df.merge(os_df, on="s_n_r_value", suffixes=("_es", "_os"))
+            merged = es_df.merge(os_df, on="param_key", suffixes=("_es", "_os"))
             if merged.empty:
                 continue
             es_recall = _recall_to_float(merged["recall_es"])
@@ -118,7 +118,7 @@ def generate_comparison(input_folder_path: str, output_folder_path: str, latency
                 rows.append(
                     {
                         "System": "Elasticsearch",
-                        "s_n_r_value": merged.at[i, "s_n_r_value"],
+                        "param_key": merged.at[i, "param_key"],
                         "recall": es_recall.iat[i],
                         latency_label: es_lat.iat[i],
                         "throughput": es_throughput.iat[i],
@@ -130,7 +130,7 @@ def generate_comparison(input_folder_path: str, output_folder_path: str, latency
                 rows.append(
                     {
                         "System": "OpenSearch",
-                        "s_n_r_value": merged.at[i, "s_n_r_value"],
+                        "param_key": merged.at[i, "param_key"],
                         "recall": os_recall.iat[i],
                         latency_label: os_lat.iat[i],
                         "throughput": os_throughput.iat[i],

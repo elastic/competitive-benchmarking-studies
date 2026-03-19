@@ -1,0 +1,18 @@
+{
+  "name": "ecommerce_filtered_knn",
+  "description": "Filtered k-NN search using Qdrant HNSW",
+  "template": {
+    "limit": "{{size}}",
+    "hnsw_ef": "{{num_candidates}}",
+    "filter": {
+      "must": [
+        {
+          "key": "valid",
+          "match": {
+            "value": true
+          }
+        }
+      ]
+    }
+  }
+}

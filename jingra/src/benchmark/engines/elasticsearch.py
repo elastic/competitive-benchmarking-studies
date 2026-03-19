@@ -3,7 +3,6 @@ import logging
 import os
 from typing import Any, Optional
 import urllib3
-from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk, parallel_bulk
 from .base import VectorSearchEngine
@@ -18,7 +17,6 @@ class ElasticsearchEngine(VectorSearchEngine):
     condition_parser = ElasticsearchConditionParser()
 
     def connect(self) -> bool:
-        load_dotenv(override=True)
         url = os.getenv(self.config.get("url_env", "ELASTIC_URL"))
         user = os.getenv(self.config.get("user_env", "ELASTIC_USER"))
         password = os.getenv(self.config.get("password_env", "ELASTIC_PASSWORD"))
@@ -32,6 +30,8 @@ class ElasticsearchEngine(VectorSearchEngine):
                 "retry_on_timeout": True,
                 "http_compress": True,
                 "connections_per_node": 100,
+                "sniff_on_start": False,
+                "sniff_on_node_failure": False,
             }
             if user and password:
                 kwargs["http_auth"] = (user, password)
@@ -47,8 +47,7 @@ class ElasticsearchEngine(VectorSearchEngine):
     def create_index(
         self,
         index_name: str,
-        dataset_config: dict[str, Any],
-        embedding_dimensions: int = 128,
+        schema_name: str,
     ) -> bool:
         if self._client is None:
             logger.error("Elasticsearch client not initialized")
@@ -58,102 +57,24 @@ class ElasticsearchEngine(VectorSearchEngine):
                 logger.warning("Index '%s' already exists", index_name)
                 return False
 
-            vector_field_name = dataset_config.get("data_mapping", {}).get("vector_field", "vector")
+            template = self.load_schema_template(schema_name)
+            if template is None:
+                logger.error("Schema template '%s' not found", schema_name)
+                return False
 
-            # Get distance metric from dataset config
-            distance = dataset_config.get("distance", "cosine")
-            similarity_map = {
-                "cosine": "cosine",
-                "dot_product": "dot_product",
-                "l2": "l2_norm",
-            }
-            similarity = similarity_map.get(distance, "dot_product")
-
-            properties: dict[str, Any] = {
-                vector_field_name: {
-                    "type": "dense_vector",
-                    "element_type": "float",
-                    "dims": embedding_dimensions,
-                    "index": True,
-                    "similarity": similarity,
-                    "index_options": {
-                        "type": "bbq_hnsw",
-                        "ef_construction": 100,
-                        "m": 16,
-                        "rescore_vector": {"oversample": 3.0},
-                    },
-                },
-            }
-
-            # Add schema-defined fields
-            schema = dataset_config.get("schema", {})
-            for field_name, field_type in schema.items():
-                properties[field_name] = self._map_schema_type(field_type)
-
-            self._client.indices.create(
-                index=index_name,
-                body={
-                    "mappings": {"properties": properties},
-                    "settings": {
-                        "number_of_shards": "3",
-                        "number_of_replicas": "1",
-                    },
-                },
-            )
-            logger.info("Created Elasticsearch index '%s'", index_name)
+            body = template.render()
+            self._client.indices.create(index=index_name, body=body)
+            logger.info("Created Elasticsearch index '%s' with schema '%s'", index_name, schema_name)
             return True
         except Exception:
             logger.exception("Failed to create index '%s'", index_name)
             return False
 
-    def _map_schema_type(self, field_type: str) -> dict[str, Any]:
-        """Map schema type strings to Elasticsearch field mappings."""
-        type_map = {
-            "bool": {"type": "boolean"},
-            "boolean": {"type": "boolean"},
-            "int": {"type": "integer"},
-            "integer": {"type": "integer"},
-            "long": {"type": "long"},
-            "float": {"type": "float"},
-            "double": {"type": "double"},
-            "keyword": {"type": "keyword"},
-            "text": {"type": "text"},
-            "date": {"type": "date"},
-            "geo_point": {"type": "geo_point"},
-        }
-        return type_map.get(field_type, {"type": "keyword"})
-
     def _get_bulk_helpers(self) -> tuple:
         return bulk, parallel_bulk
 
-    def vector_search(
-        self,
-        index_name: str,
-        query_vector: list[float],
-        vector_field: str,
-        size: int,
-        num_candidates: int,
-        rescore: int,
-        filter_query: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
-        if self._client is None:
-            logger.error("Elasticsearch client not initialized")
-            return {"hits": {"hits": []}}
-        knn_clause: dict[str, Any] = {
-            "field": vector_field,
-            "query_vector": query_vector,
-            "k": num_candidates,
-            "num_candidates": num_candidates,
-            "rescore_vector": {"oversample": rescore},
-        }
-        if filter_query is not None:
-            knn_clause["filter"] = filter_query
-        query_dsl = {
-            "query": {"knn": knn_clause},
-            "size": size,
-            "_source": {"excludes": [vector_field]},
-        }
-        return self._timed_search(index_name, query_dsl)
+    def get_engine_name(self) -> str:
+        return "elasticsearch"
 
     def get_version(self) -> str:
         if self._client is None:

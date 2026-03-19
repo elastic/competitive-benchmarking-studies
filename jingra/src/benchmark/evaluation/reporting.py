@@ -2,19 +2,26 @@ import csv
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from datasets import Dataset
 
 from .metrics import precision_at_k, recall_at_k, f1_at_k, mrr_at_k, latency_stats
+from .results_uploader import get_uploader
+
+
+def _params_to_key(params: Dict[str, Any]) -> str:
+    """Convert params dict to a string key for column naming."""
+    parts = [f"{k}={v}" for k, v in sorted(params.items()) if k != "query_vector"]
+    return "_".join(parts)
 
 
 def calculate_retrieval_metrics(
     evaluation_dataset: Dataset,
     ground_truth_field: str,
     retrieval_methods: List[str],
-    s_n_r_values: List[str],
+    param_list: List[Dict[str, Any]],
     recall_label: str,
     save_results: bool = True,
     output_dir: str = "results",
@@ -23,12 +30,13 @@ def calculate_retrieval_metrics(
     results = {}
 
     for base_method in retrieval_methods:
-        for s_n_r_value in s_n_r_values:
-            method_column = f"{base_method}_at_{s_n_r_value}"
+        for params in param_list:
+            param_key = _params_to_key(params)
+            method_column = f"{base_method}_at_{param_key}"
             precisions, recalls, f1s, mrrs = [], [], [], []
             client_latencies, server_latencies = [], []
             elapsed_time = None
-            k = int(s_n_r_value.split("_")[0])
+            k = params.get("size", params.get("k", 10))
 
             for row in evaluation_dataset:
                 ground_truth = row.get(ground_truth_field)
@@ -56,7 +64,7 @@ def calculate_retrieval_metrics(
                 if server_lat is not None:
                     server_latencies.append(server_lat)
 
-                elapsed_time = row.get(f"elapsed_time_at_{s_n_r_value}")
+                elapsed_time = row.get(f"elapsed_time_at_{param_key}")
 
             num_samples = len(precisions)
             client_stats = latency_stats(client_latencies)
@@ -64,6 +72,7 @@ def calculate_retrieval_metrics(
             throughput = (num_samples / elapsed_time) if elapsed_time and elapsed_time > 0 else 0.0
 
             results[method_column] = {
+                "params": params,
                 "precision": float(np.mean(precisions)) if precisions else 0.0,
                 "recall": float(np.mean(recalls)) if recalls else 0.0,
                 "f1": float(np.mean(f1s)) if f1s else 0.0,
@@ -82,11 +91,16 @@ def calculate_retrieval_metrics(
                 "num_samples": num_samples,
             }
 
-    _print_formatted_results(results, retrieval_methods, s_n_r_values)
+    _print_formatted_results(results, retrieval_methods, param_list)
+
+    # Upload metrics to results cluster if enabled
+    uploader = get_uploader()
+    if uploader.enabled:
+        uploader.upload_metrics(results, retrieval_methods, param_list, recall_label)
 
     if save_results:
         csv_path, json_path = _save_metrics_to_files(
-            results, retrieval_methods, s_n_r_values, recall_label, output_dir, engine_info
+            results, retrieval_methods, param_list, recall_label, output_dir, engine_info
         )
         print(f"\nResults saved to:\n  - CSV:  {csv_path}\n  - JSON: {json_path}\n")
 
@@ -94,13 +108,8 @@ def calculate_retrieval_metrics(
 
 
 def _print_formatted_results(
-    results: Dict[str, Dict[str, float]], base_methods: List[str], s_n_r_values: List[str]
+    results: Dict[str, Dict[str, float]], base_methods: List[str], param_list: List[Dict[str, Any]]
 ) -> None:
-    grouped = {}
-    for val in s_n_r_values:
-        size, num_candidates, rescore = map(int, val.split("_"))
-        grouped.setdefault((size, num_candidates), []).append(rescore)
-
     print("\n" + "=" * 150)
     print(" " * 38 + "RETRIEVAL EVALUATION RESULTS")
     print("=" * 150 + "\n")
@@ -108,12 +117,19 @@ def _print_formatted_results(
     for base_method in base_methods:
         method_display_name = base_method.replace("_", " ").title()
 
-        for (size, num_candidates), rescores in grouped.items():
-            rescores_sorted = sorted(rescores)
+        # Group by size and num_candidates
+        grouped: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
+        for params in param_list:
+            size = params.get("size", 10)
+            num_candidates = params.get("num_candidates", size)
+            grouped.setdefault((size, num_candidates), []).append(params)
+
+        for (size, num_candidates), params_group in grouped.items():
             config_label = f"s={size}  n={num_candidates}"
+            rescores = sorted(set(p.get("rescore", 1) for p in params_group))
 
             header = f"{'':40} {'Metric':<28} " + " ".join(
-                [f"{'Rescore_' + str(r):<13}" for r in rescores_sorted]
+                [f"{'Rescore_' + str(r):<13}" for r in rescores]
             )
             print(header)
             print("-" * 150)
@@ -144,9 +160,17 @@ def _print_formatted_results(
                     print()
                     continue
                 values = []
-                for r in rescores_sorted:
-                    method_key = f"{base_method}_at_{size}_{num_candidates}_{r}"
-                    value = results.get(method_key, {}).get(key, 0.0)
+                for r in rescores:
+                    # Find the params with this rescore value
+                    matching_params = next(
+                        (p for p in params_group if p.get("rescore", 1) == r), None
+                    )
+                    if matching_params:
+                        param_key = _params_to_key(matching_params)
+                        method_key = f"{base_method}_at_{param_key}"
+                        value = results.get(method_key, {}).get(key, 0.0)
+                    else:
+                        value = 0.0
                     values.append(f"{value:<13.4f}")
                 if i == 0:
                     label = method_display_name
@@ -162,7 +186,7 @@ def _print_formatted_results(
 def _save_metrics_to_files(
     results: Dict[str, Dict[str, float]],
     base_methods: List[str],
-    s_n_r_values: List[str],
+    param_list: List[Dict[str, Any]],
     recall_label: str,
     output_dir: str,
     engine_info: Optional[Dict[str, str]] = None,
@@ -195,7 +219,8 @@ def _save_metrics_to_files(
 
     fieldnames = [
         "method",
-        "s_n_r_value",
+        "param_key",
+        "params",
         "precision",
         "recall",
         "f1_score",
@@ -217,12 +242,14 @@ def _save_metrics_to_files(
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for base_method in base_methods:
-            for s_n_r_value in s_n_r_values:
-                m = results.get(f"{base_method}_at_{s_n_r_value}", {})
+            for params in param_list:
+                param_key = _params_to_key(params)
+                m = results.get(f"{base_method}_at_{param_key}", {})
                 writer.writerow(
                     {
                         "method": base_method,
-                        "s_n_r_value": s_n_r_value,
+                        "param_key": param_key,
+                        "params": json.dumps(params),
                         "precision": f"{m.get('precision', 0):.4f}".rstrip("0").rstrip("."),
                         "recall": f"{m.get('recall', 0):.4f}".rstrip("0").rstrip("."),
                         "f1_score": f"{m.get('f1', 0):.4f}".rstrip("0").rstrip("."),

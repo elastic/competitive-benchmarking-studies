@@ -3,7 +3,6 @@ import logging
 import os
 from typing import Any, Optional
 import urllib3
-from dotenv import load_dotenv
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from opensearchpy.helpers import bulk, parallel_bulk
 from .base import VectorSearchEngine
@@ -18,7 +17,6 @@ class OpenSearchEngine(VectorSearchEngine):
     condition_parser = OpenSearchConditionParser()
 
     def connect(self) -> bool:
-        load_dotenv(override=True)
         url = os.getenv(self.config.get("url_env", "OPENSEARCH_URL"))
         user = os.getenv(self.config.get("user_env", "OPENSEARCH_USER"))
         password = os.getenv(self.config.get("password_env", "OPENSEARCH_PASSWORD"))
@@ -50,8 +48,7 @@ class OpenSearchEngine(VectorSearchEngine):
     def create_index(
         self,
         index_name: str,
-        dataset_config: dict[str, Any],
-        embedding_dimensions: int = 128,
+        schema_name: str,
     ) -> bool:
         if self._client is None:
             logger.error("OpenSearch client not initialized")
@@ -61,102 +58,24 @@ class OpenSearchEngine(VectorSearchEngine):
                 logger.warning("Index '%s' already exists", index_name)
                 return False
 
-            vector_field_name = dataset_config.get("data_mapping", {}).get("vector_field", "vector")
+            template = self.load_schema_template(schema_name)
+            if template is None:
+                logger.error("Schema template '%s' not found", schema_name)
+                return False
 
-            # Get distance metric from dataset config
-            distance = dataset_config.get("distance", "cosine")
-            space_type_map = {
-                "cosine": "cosinesimil",
-                "dot_product": "innerproduct",
-                "l2": "l2",
-            }
-            space_type = space_type_map.get(distance, "innerproduct")
-
-            properties: dict[str, Any] = {
-                vector_field_name: {
-                    "type": "knn_vector",
-                    "dimension": embedding_dimensions,
-                    "space_type": space_type,
-                    "data_type": "float",
-                    "compression_level": "32x",
-                    "mode": "in_memory",
-                    "method": {
-                        "name": "hnsw",
-                        "engine": "faiss",
-                        "parameters": {"ef_construction": 100, "m": 16},
-                    },
-                },
-            }
-
-            # Add schema-defined fields
-            schema = dataset_config.get("schema", {})
-            for field_name, field_type in schema.items():
-                properties[field_name] = self._map_schema_type(field_type)
-
-            self._client.indices.create(
-                index=index_name,
-                body={
-                    "mappings": {"properties": properties},
-                    "settings": {
-                        "number_of_shards": "3",
-                        "number_of_replicas": "1",
-                        "index.knn": True,
-                    },
-                },
-            )
-            logger.info("Created OpenSearch index '%s'", index_name)
+            body = template.render()
+            self._client.indices.create(index=index_name, body=body)
+            logger.info("Created OpenSearch index '%s' with schema '%s'", index_name, schema_name)
             return True
         except Exception:
             logger.exception("Failed to create index '%s'", index_name)
             return False
 
-    def _map_schema_type(self, field_type: str) -> dict[str, Any]:
-        """Map schema type strings to OpenSearch field mappings."""
-        type_map = {
-            "bool": {"type": "boolean"},
-            "boolean": {"type": "boolean"},
-            "int": {"type": "integer"},
-            "integer": {"type": "integer"},
-            "long": {"type": "long"},
-            "float": {"type": "float"},
-            "double": {"type": "double"},
-            "keyword": {"type": "keyword"},
-            "text": {"type": "text"},
-            "date": {"type": "date"},
-            "geo_point": {"type": "geo_point"},
-        }
-        return type_map.get(field_type, {"type": "keyword"})
-
     def _get_bulk_helpers(self) -> tuple:
         return bulk, parallel_bulk
 
-    def vector_search(
-        self,
-        index_name: str,
-        query_vector: list[float],
-        vector_field: str,
-        size: int,
-        num_candidates: int,
-        rescore: int,
-        filter_query: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
-        if self._client is None:
-            logger.error("OpenSearch client not initialized")
-            return {"hits": {"hits": []}}
-        knn_inner: dict[str, Any] = {
-            "vector": query_vector,
-            "k": num_candidates,
-            "method_parameters": {"ef_search": num_candidates},
-            "rescore": {"oversample_factor": rescore},
-        }
-        if filter_query is not None:
-            knn_inner["filter"] = filter_query
-        query_dsl = {
-            "query": {"knn": {vector_field: knn_inner}},
-            "size": size,
-            "_source": {"excludes": [vector_field]},
-        }
-        return self._timed_search(index_name, query_dsl)
+    def get_engine_name(self) -> str:
+        return "opensearch"
 
     def get_version(self) -> str:
         if self._client is None:

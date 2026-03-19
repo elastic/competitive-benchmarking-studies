@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,11 +12,14 @@ from .comparison.compare import run_comparison
 from .config import load_config
 from .datasets import ParquetDatasetLoader
 from .engines import get_engine
-from .evaluation import calculate_retrieval_metrics, create_parquet_evaluation_dataset
+from .evaluation import calculate_retrieval_metrics, create_parquet_evaluation_dataset, get_uploader
 from .plotting import get_available_dates, organize_results_by_date, run_plots
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+# Version info for tracking which image is running
+JINGRA_VERSION = os.getenv("JINGRA_VERSION", "unknown")
 
 
 def _resolve_target_date(arg_value: Optional[str], is_auto: bool) -> Optional[str]:
@@ -33,7 +37,7 @@ def main() -> None:
     parser.add_argument(
         "--engine",
         type=str,
-        choices=["elasticsearch", "opensearch"],
+        choices=["elasticsearch", "opensearch", "qdrant"],
         help="Vector search engine to use (overrides config.yaml)",
     )
     parser.add_argument("--dataset", type=str, help="Dataset to use (overrides config.yaml)")
@@ -75,9 +79,9 @@ def main() -> None:
     parser.add_argument(
         "--quick-eval",
         type=str,
-        metavar="S_N_R,...",
-        help="Run evaluation with specific s_n_r values (comma-separated). "
-        "Example: --quick-eval '10_10_1,10_2000_2'",
+        metavar="JSON",
+        help="Run evaluation with a JSON array of param objects. "
+        "Example: --quick-eval '[{\"size\":10,\"k\":10,\"num_candidates\":100,\"rescore\":1}]'",
     )
     parser.add_argument(
         "--exact-match",
@@ -108,6 +112,7 @@ def main() -> None:
             sys.exit(1)
         config.dataset = args.dataset
 
+    logger.info(f"Jingra version: {JINGRA_VERSION}")
     logger.info(f"Using engine: {config.engine}, dataset: {config.dataset}")
 
     dataset_config = config.get_current_dataset()
@@ -183,13 +188,15 @@ def main() -> None:
             logger.info(f"Deleting existing index: {index_name}")
             engine.delete_index(index_name)
 
-        embedding_dimensions = dataset_config.vector_size
+        schema_name = dataset_config.schema_name
+        if not schema_name:
+            logger.error("No schema_name configured for dataset")
+            sys.exit(1)
 
-        logger.info(f"Creating index: {index_name}")
+        logger.info(f"Creating index: {index_name} with schema: {schema_name}")
         engine.create_index(
             index_name=index_name,
-            dataset_config=dataset_config.to_dict(),
-            embedding_dimensions=embedding_dimensions,
+            schema_name=schema_name,
         )
 
         total_docs = dataset_loader.count_data()
@@ -214,14 +221,28 @@ def main() -> None:
             f"Engine: {engine_info['short_name']} v{engine_info['version']} ({engine_info['vector_type']})"
         )
 
+        # Initialize results uploader for centralized storage
+        uploader = get_uploader()
+        uploader.initialize(engine_info=engine_info, dataset_name=config.dataset)
+
         ground_truth_field = dataset_loader.get_ground_truth_field()
 
-        for recall_label, s_n_r_values in config.s_n_r_groups.items():
+        query_name = dataset_config.query_name
+        if not query_name:
+            logger.error("No query_name configured for dataset")
+            sys.exit(1)
+
+        if not dataset_config.param_groups:
+            logger.error("No param_groups configured for dataset")
+            sys.exit(1)
+
+        for recall_label, param_list in dataset_config.param_groups.items():
             logger.info(f"Running evaluation for {recall_label}...")
             evaluation_dataset = create_parquet_evaluation_dataset(
                 engine=engine,
                 parquet_loader=dataset_loader,
-                s_n_r_values=s_n_r_values,
+                query_name=query_name,
+                param_list=param_list,
                 warmup_rounds=config.evaluation.warmup_rounds,
                 warmup_workers=config.evaluation.warmup_workers,
                 measurement_rounds=config.evaluation.measurement_rounds,
@@ -231,7 +252,7 @@ def main() -> None:
                 evaluation_dataset=evaluation_dataset,
                 ground_truth_field=ground_truth_field,
                 retrieval_methods=config.evaluation.retrieval_methods,
-                s_n_r_values=s_n_r_values,
+                param_list=param_list,
                 recall_label=recall_label,
                 save_results=True,
                 output_dir=config.output.results_dir,
@@ -251,22 +272,38 @@ def main() -> None:
             f"Engine: {engine_info['short_name']} v{engine_info['version']} ({engine_info['vector_type']})"
         )
 
+        # Initialize results uploader for centralized storage
+        uploader = get_uploader()
+        uploader.initialize(engine_info=engine_info, dataset_name=config.dataset)
+
         ground_truth_field = dataset_loader.get_ground_truth_field()
+        query_name = dataset_config.query_name
+        if not query_name:
+            logger.error("No query_name configured for dataset")
+            sys.exit(1)
 
-        s_n_r_values = [v.strip() for v in args.quick_eval.split(",")]
+        # Parse JSON array of param objects
+        try:
+            param_list = json.loads(args.quick_eval)
+            if not isinstance(param_list, list):
+                param_list = [param_list]
+        except json.JSONDecodeError:
+            logger.error("quick_eval must be a JSON array of param objects, e.g., '[{\"size\":10,\"k\":10,\"num_candidates\":100,\"rescore\":1}]'")
+            sys.exit(1)
 
-        # Group by size (first number) to derive recall labels
-        groups: Dict[str, List[str]] = {}
-        for val in s_n_r_values:
-            size = val.split("_")[0]
-            groups.setdefault(f"recall@{size}", []).append(val)
+        # Group by size to derive recall labels
+        groups: Dict[str, List[Dict[str, Any]]] = {}
+        for params in param_list:
+            size = params.get("size", 10)
+            groups.setdefault(f"recall@{size}", []).append(params)
 
-        for recall_label, group_values in groups.items():
-            logger.info(f"Quick eval for {recall_label}: {group_values}")
+        for recall_label, group_params in groups.items():
+            logger.info(f"Quick eval for {recall_label}: {group_params}")
             evaluation_dataset = create_parquet_evaluation_dataset(
                 engine=engine,
                 parquet_loader=dataset_loader,
-                s_n_r_values=group_values,
+                query_name=query_name,
+                param_list=group_params,
                 warmup_rounds=config.evaluation.warmup_rounds,
                 warmup_workers=config.evaluation.warmup_workers,
                 measurement_rounds=config.evaluation.measurement_rounds,
@@ -276,7 +313,7 @@ def main() -> None:
                 evaluation_dataset=evaluation_dataset,
                 ground_truth_field=ground_truth_field,
                 retrieval_methods=config.evaluation.retrieval_methods,
-                s_n_r_values=group_values,
+                param_list=group_params,
                 recall_label=recall_label,
                 save_results=True,
                 output_dir=config.output.results_dir,

@@ -1,8 +1,7 @@
 [project]
 name = "jingra"
-version = "0.1.0"
+version = "1.0.0"
 description = "Comprehensive benchmarking tool for various search, vector search, observability, and security use cases across multiple engines."
-readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
@@ -14,6 +13,7 @@ dependencies = [
     # Search engine clients
     "elasticsearch>=8.0.0",
     "opensearch-py>=2.0.0",
+    "qdrant-client>=1.9.0",
     # Data handling
     "datasets>=2.0.0",
     "pandas>=2.0.0",
@@ -21,7 +21,6 @@ dependencies = [
     "pyarrow>=14.0.0",
     # Configuration
     "pyyaml>=6.0",
-    "python-dotenv>=1.0.0",
     # HTTP
     "requests>=2.28.0",
     # Progress bars

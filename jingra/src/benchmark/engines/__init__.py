@@ -1,10 +1,12 @@
 from .base import VectorSearchEngine
 from .elasticsearch import ElasticsearchEngine
 from .opensearch import OpenSearchEngine
+from .qdrant import QdrantEngine
 
 ENGINES = {
     "elasticsearch": ElasticsearchEngine,
     "opensearch": OpenSearchEngine,
+    "qdrant": QdrantEngine,
 }
 
 

@@ -1,0 +1,34 @@
+{
+  "name": "ecommerce_filtered_knn",
+  "description": "Index mapping for filtered k-NN search with FAISS HNSW",
+  "template": {
+    "mappings": {
+      "properties": {
+        "search_catalog_embedding": {
+          "type": "knn_vector",
+          "dimension": 128,
+          "space_type": "cosinesimil",
+          "data_type": "float",
+          "compression_level": "32x",
+          "mode": "in_memory",
+          "method": {
+            "name": "hnsw",
+            "engine": "faiss",
+            "parameters": {
+              "ef_construction": 100,
+              "m": 16
+            }
+          }
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      }
+    },
+    "settings": {
+      "number_of_shards": "3",
+      "number_of_replicas": "1",
+      "index.knn": true
+    }
+  }
+}

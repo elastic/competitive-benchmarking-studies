@@ -17,16 +17,22 @@ uv pip install -e .
 
 ### 2. Configuration
 
-Next, create your environment configuration file and fill in the necessary credentials.
+Create your configuration files:
 
 ```bash
+# Copy the main config template
+cp jingra.yaml.template jingra.yaml
+
+# Copy the environment file
 cp src/benchmark/.env.sample src/benchmark/.env
 ```
 
-You will need to edit the newly created `.env` file to include the following:
+Edit the `.env` file to include your connection details:
 
 - `ELASTIC_URL`, `ELASTIC_USER`, `ELASTIC_PASSWORD`: Connection details for your Elasticsearch instance.
 - `OPENSEARCH_URL`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD`: Connection details for your OpenSearch instance.
+
+Edit `jingra.yaml` to configure your datasets, queries, and benchmark parameters.
 
 ## Usage (CLI)
 
@@ -66,34 +72,53 @@ All commands must be run from within the `jingra/` directory.
 
 | Flag                       | Purpose                                                                      |
 | :------------------------- | :--------------------------------------------------------------------------- |
-| `--engine`                 | `elasticsearch` or `opensearch` (overrides `config.yaml`).                   |
-| `--dataset`                | A dataset key from `config.yaml` (e.g., `ecommerce-search-128`).             |
-| `--config`                 | Path to an alternate `config.yaml` file.                                     |
+| `--engine`                 | `elasticsearch` or `opensearch` (overrides `jingra.yaml`).                   |
+| `--dataset`                | A dataset key from `jingra.yaml` (e.g., `ecommerce-search-128`).             |
+| `--config`                 | Path to an alternate config file.                                            |
 | `--load-kb`                | Display parquet dataset info (record and query counts).                      |
 | `--ingest-data`            | Create the index and bulk-ingest documents.                                  |
 | `--delete-index`           | Delete the existing index before ingestion.                                  |
-| `--evaluate-retrieval`     | Run the full evaluation using `s_n_r_groups` from the config.                |
-| `--quick-eval S_N_R,...`   | Evaluate a specific, comma-separated list of `s_n_r` values.                 |
+| `--evaluate-retrieval`     | Run the full evaluation using `param_groups` from the dataset config.        |
+| `--quick-eval JSON`        | Evaluate with a JSON array of param objects (see below).                     |
 | `--exact-match [N]`        | Perform a brute-force exact search for validation at recall@N (default: 10). |
 | `--dump-engine-config`     | Dump engine cluster/index settings to the results `.config/` folder.         |
 | `--plot-results [DATE]`    | Generate plots from results, with an optional `YYYYMMDD` date filter.        |
 | `--compare-results [DATE]` | Generate an ES-vs-OS comparison CSV, with an optional date filter.           |
 
+### Quick Eval Example
+
+```bash
+uv run python -m src.benchmark.main --engine elasticsearch --quick-eval '[{"size":100,"k":100,"num_candidates":500,"rescore":1}]'
+```
+
 ## Architecture Overview
 
 - **Engines** (`engines/`): Contains the `VectorSearchEngine` abstract base class (`base.py`) and concrete implementations for each search engine. New engines can be added by implementing this interface and registering them in the `ENGINES` dictionary in `engines/__init__.py`.
-- **Datasets** (`datasets/`): Parquet-based dataset loader for pre-computed embeddings. Dataset configuration is driven by `config/config.yaml`.
+- **Queries** (`queries/`): JSON query templates for each engine. Each query defines the search DSL with placeholders for runtime parameters.
+- **Schemas** (`schemas/`): JSON index mapping templates for each engine. Each schema defines the index structure required for its corresponding query.
+- **Datasets** (`datasets/`): Parquet-based dataset loader for pre-computed embeddings. Dataset configuration is driven by `jingra.yaml`.
 - **Evaluation** (`evaluation/`): This module contains the core logic for performance measurement, including search execution (`parquet_search.py`), metric calculation (`metrics.py`), and reporting (`reporting.py`).
 - **Plotting & Comparison** (`plotting/`, `comparison/`): Modules responsible for generating visualizations and side-by-side performance reports from the raw benchmark results.
-- **Configuration** (`config/config.yaml`): The central configuration file for datasets, engine parameters, evaluation settings, and output paths.
+- **Configuration** (`jingra.yaml`): The central configuration file for datasets, engine parameters, evaluation settings, and output paths.
 
-### Understanding `s_n_r_groups`
+### Understanding `param_groups`
 
-The benchmark uses parameter triplets called `s_n_r_groups` to control search behavior. The name is a shorthand for **s**ize\_**n**umCandidates\_**r**escore, configured in `config.yaml` as a string: `"size_numCandidates_rescore"`.
+Each dataset in `jingra.yaml` defines `param_groups` - collections of parameter sets used for benchmarking. Parameters are passed directly to the query template.
 
+For vector search queries, typical parameters include:
 - **`size`**: The number of top-k results to return.
-- **`numCandidates`**: The number of candidates to explore in the HNSW graph.
-- **`rescore`**: An oversampling factor for a potential rescoring phase.
+- **`k`**: The k value for k-NN search.
+- **`num_candidates`**: The number of candidates to explore in the HNSW graph.
+- **`rescore`**: An oversampling factor for rescoring.
+
+Example configuration:
+```yaml
+param_groups:
+  recall@100:
+    - {size: 100, k: 100, num_candidates: 250, rescore: 1}
+    - {size: 100, k: 100, num_candidates: 500, rescore: 1}
+    - {size: 100, k: 100, num_candidates: 1000, rescore: 1}
+```
 
 Results for each run are saved to a date-stamped directory in `results/` (e.g., `results/20260127/`).
 
@@ -102,6 +127,6 @@ Results for each run are saved to a date-stamped directory in `results/` (e.g., 
 To ensure the project remains consistent and easy to maintain, please follow these guidelines when contributing:
 
 - **Follow existing patterns.** Do not invent new result formats or output structures.
-- **Prefer configuration over code.** When adding datasets or parameters, modify `config.yaml` rather than hardcoding new logic.
-- **Isolate engine-specific code.** Keep query logic contained within the respective engine's Python file (e.g., `elasticsearch.py`).
-- **Preserve config comments.** The `s_n_r_groups` in `config.yaml` are commented for users to enable as needed. Do not alter this structure.
+- **Prefer configuration over code.** When adding datasets or parameters, modify `jingra.yaml` rather than hardcoding new logic.
+- **Isolate engine-specific code.** Keep query logic contained within the query template JSON files in `queries/`.
+- **Add matching schema and query files.** When adding a new query type, create both `schemas/<engine>/<name>.json` and `queries/<engine>/<name>.json`.

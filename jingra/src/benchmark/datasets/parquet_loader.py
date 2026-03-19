@@ -1,6 +1,8 @@
 from __future__ import annotations
 import json
 import logging
+import os
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set
 
@@ -27,10 +29,12 @@ class ParquetDatasetLoader:
         self.vector_size = dataset_config.get("vector_size", 128)
         self.distance = dataset_config.get("distance", "cosine")
 
-        # Path configuration
+        # Path configuration (optional env names for download-if-missing)
         path_config = dataset_config.get("path", {})
         self.data_path = path_config.get("data_path")
         self.queries_path = path_config.get("queries_path")
+        self.data_url_env = path_config.get("data_url_env", "")
+        self.queries_url_env = path_config.get("queries_url_env", "")
 
         # Data mapping configuration
         data_mapping = dataset_config.get("data_mapping", {})
@@ -58,12 +62,32 @@ class ParquetDatasetLoader:
             return p
         return PROJECT_ROOT / p
 
+    def _download_if_missing(self, resolved_path: Path, url_env: str) -> None:
+        """If the file does not exist and url_env is set, download from that URL to the path."""
+        if resolved_path.exists():
+            return
+        url = os.environ.get(url_env) if url_env else None
+        if not url:
+            raise FileNotFoundError(
+                f"Dataset file not found: {resolved_path}. "
+                f"Set {url_env} to download from a URL, or place the file at this path."
+            )
+        resolved_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("Downloading %s to %s", url, resolved_path)
+        req = urllib.request.Request(url, headers={"User-Agent": "jingra-benchmark/1.0"})
+        with urllib.request.urlopen(req) as resp:
+            with open(resolved_path, "wb") as f:
+                while chunk := resp.read(8192):
+                    f.write(chunk)
+        logger.info("Downloaded %s", resolved_path)
+
     def _load_data_dataset(self) -> ds.Dataset:
         """Load the data parquet dataset lazily."""
         if self._data_dataset is None:
             if not self.data_path:
                 raise ValueError("data_path not configured")
             resolved_path = self._resolve_path(self.data_path)
+            self._download_if_missing(resolved_path, self.data_url_env)
             logger.info("Loading data parquet from %s", resolved_path)
             self._data_dataset = ds.dataset(str(resolved_path), format="parquet")
             self._compute_metadata_fields()
@@ -75,6 +99,7 @@ class ParquetDatasetLoader:
             if not self.queries_path:
                 raise ValueError("queries_path not configured")
             resolved_path = self._resolve_path(self.queries_path)
+            self._download_if_missing(resolved_path, self.queries_url_env)
             logger.info("Loading queries parquet from %s", resolved_path)
             self._queries_dataset = ds.dataset(str(resolved_path), format="parquet")
         return self._queries_dataset
@@ -102,12 +127,12 @@ class ParquetDatasetLoader:
         dataset = self._load_data_dataset()
         self._validate_fields(dataset, {self._vector_field}, "load_data")
 
+        # Enable prefetching for faster reading
         for batch in dataset.to_batches(
-            batch_readahead=0,
+            batch_readahead=8,
             fragment_scan_options=ds.ParquetFragmentScanOptions(
                 use_buffered_stream=True,
-                pre_buffer=False,
-                cache_options=pa.CacheOptions(lazy=True, prefetch_limit=0),
+                pre_buffer=True,
             ),
         ):
             for row in batch.to_pylist():
@@ -167,21 +192,36 @@ class ParquetDatasetLoader:
         return actions
 
     def stream_bulk_actions(self) -> Iterator[Dict[str, Any]]:
-        """Stream bulk actions for memory-efficient ingestion of large datasets."""
+        """Stream bulk actions for memory-efficient ingestion of large datasets.
+
+        Optimized to process parquet batches directly without Record object overhead.
+        """
         logger.info("Streaming bulk actions from parquet data")
+        dataset = self._load_data_dataset()
 
-        for record in self.load_data():
-            source: Dict[str, Any] = {
-                self._vector_field: record.vector,
-            }
-            if record.metadata:
-                source.update(record.metadata)
+        # Process batches directly for better performance
+        for batch in dataset.to_batches(
+            batch_readahead=8,
+            fragment_scan_options=ds.ParquetFragmentScanOptions(
+                use_buffered_stream=True,
+                pre_buffer=True,
+            ),
+        ):
+            # Convert entire batch to Python list at once
+            rows = batch.to_pylist()
+            for row in rows:
+                source: Dict[str, Any] = {self._vector_field: row.get(self._vector_field)}
 
-            action: Dict[str, Any] = {"_source": source}
-            if record.id is not None:
-                action["_id"] = str(record.id)
+                # Add metadata fields directly
+                for field in self._metadata_fields or []:
+                    if field in row:
+                        source[field] = row[field]
 
-            yield action
+                action: Dict[str, Any] = {"_source": source}
+                if self._id_field and row.get(self._id_field) is not None:
+                    action["_id"] = str(row[self._id_field])
+
+                yield action
 
     def get_index_name(self) -> str:
         """Return the configured index name."""

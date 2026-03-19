@@ -1,0 +1,29 @@
+{
+  "name": "ecommerce_filtered_knn",
+  "description": "Filtered k-NN search using OpenSearch FAISS HNSW with rescore",
+  "template": {
+    "query": {
+      "knn": {
+        "search_catalog_embedding": {
+          "vector": "{{query_vector}}",
+          "k": "{{k}}",
+          "method_parameters": {
+            "ef_search": "{{num_candidates}}"
+          },
+          "rescore": {
+            "oversample_factor": "{{rescore}}"
+          },
+          "filter": {
+            "term": {
+              "valid": true
+            }
+          }
+        }
+      }
+    },
+    "size": "{{size}}",
+    "_source": {
+      "excludes": ["search_catalog_embedding"]
+    }
+  }
+}

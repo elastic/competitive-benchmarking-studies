@@ -1,0 +1,59 @@
+engine: "elasticsearch" # Default
+
+elasticsearch:
+  url_env: "ELASTIC_URL"
+  user_env: "ELASTIC_USER"
+  password_env: "ELASTIC_PASSWORD"
+
+opensearch:
+  url_env: "OPENSEARCH_URL"
+  user_env: "OPENSEARCH_USER"
+  password_env: "OPENSEARCH_PASSWORD"
+
+dataset: "ecommerce-search-128"
+
+datasets:
+  ecommerce-search-128:
+    type: "parquet"
+    index_name: "ecommerce_search_catalog_128"
+    vector_size: 128
+    distance: "cosine"
+    schema_name: "ecommerce_filtered_knn"
+    query_name: "ecommerce_filtered_knn"
+    path:
+      data_path: "datasets/ecommerce-search-catalog-embedding-128-filters/data.parquet"
+      queries_path: "datasets/ecommerce-search-catalog-embedding-128-filters/queries.parquet"
+    data_mapping:
+      id_field: "catalog_id"
+      vector_field: "search_catalog_embedding"
+    queries_mapping:
+      query_vector_field: "search_catalog_embedding"
+      ground_truth_field: "closest_ids"
+      conditions_field: "conditions"
+    param_groups:
+      recall@100:
+        - {size: 100, k: 100, num_candidates: 250, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 500, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 750, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 1000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 1500, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 2000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 2500, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 3000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 4000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 5000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 6000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 7000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 8000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 9000, rescore: 1}
+        - {size: 100, k: 100, num_candidates: 10000, rescore: 1}
+
+evaluation:
+  warmup_workers: 16
+  measurement_workers: 16
+  warmup_rounds: 3
+  measurement_rounds: 1
+  retrieval_methods: ["dense_retrieval_response"]
+
+output:
+  results_dir: "results"

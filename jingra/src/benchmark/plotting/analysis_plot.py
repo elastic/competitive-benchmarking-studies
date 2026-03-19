@@ -20,8 +20,12 @@ def extract_at_value(filename: str) -> Optional[str]:
     return filename[i:j] or None
 
 
-def extract_r_value_from_row(s_n_r_value: str) -> str:
-    return str(s_n_r_value).split("_")[-1]
+def extract_rescore_from_param_key(param_key: str) -> str:
+    """Extract rescore value from param_key like 'k=100_num_candidates=250_rescore=1_size=100'."""
+    for part in str(param_key).split("_"):
+        if part.startswith("rescore="):
+            return part.split("=")[1]
+    return "1"  # default rescore value
 
 
 def natural_sort_key(text: str) -> list[object]:
@@ -118,9 +122,9 @@ def _max_recall_per_at(
         max_val: Optional[float] = None
         for csv_path in grouped_csvs[at_val]:
             df = _read_csv_safe(csv_path)
-            if df is None or "s_n_r_value" not in df.columns or metric not in df.columns:
+            if df is None or "param_key" not in df.columns or metric not in df.columns:
                 continue
-            filtered = df[df["s_n_r_value"].map(extract_r_value_from_row) == r_val].copy()
+            filtered = df[df["param_key"].map(extract_rescore_from_param_key) == r_val].copy()
             filtered[metric] = pd.to_numeric(filtered[metric], errors="coerce")
             filtered = filtered.dropna(subset=[metric])
             if filtered.empty:
@@ -170,12 +174,12 @@ def _plot_one_figure(
             if df is None:
                 continue
             if (
-                "s_n_r_value" not in df.columns
+                "param_key" not in df.columns
                 or x_axis not in df.columns
                 or metric not in df.columns
             ):
                 continue
-            df = df[df["s_n_r_value"].map(extract_r_value_from_row) == r_val].copy()
+            df = df[df["param_key"].map(extract_rescore_from_param_key) == r_val].copy()
             df[x_axis] = pd.to_numeric(df[x_axis], errors="coerce")
             df[metric] = pd.to_numeric(df[metric], errors="coerce")
             df = df.dropna(subset=[x_axis, metric])

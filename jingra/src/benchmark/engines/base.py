@@ -5,13 +5,92 @@ from abc import ABC, abstractmethod
 from typing import Any, Iterator, Optional
 from tqdm import tqdm
 
+from ..queries import QueryLoader, QueryTemplate
+from ..schemas import SchemaLoader, SchemaTemplate
+
 logger = logging.getLogger(__name__)
 
 
 class VectorSearchEngine(ABC):
+    _query_loader: Optional[QueryLoader] = None
+    _schema_loader: Optional[SchemaLoader] = None
+
     def __init__(self, config: dict[str, Any]):
         self.config = config
         self._client = None
+        self._query_templates: dict[str, QueryTemplate] = {}
+        self._schema_templates: dict[str, SchemaTemplate] = {}
+
+    @classmethod
+    def get_query_loader(cls) -> QueryLoader:
+        """Get the shared query loader instance."""
+        if cls._query_loader is None:
+            cls._query_loader = QueryLoader()
+        return cls._query_loader
+
+    def load_query_template(self, query_name: str) -> Optional[QueryTemplate]:
+        """Load and cache a query template for this engine."""
+        if query_name in self._query_templates:
+            return self._query_templates[query_name]
+
+        engine_name = self.get_engine_name()
+        loader = self.get_query_loader()
+        template = loader.load(engine_name, query_name)
+        if template:
+            self._query_templates[query_name] = template
+        return template
+
+    def list_available_queries(self) -> list[str]:
+        """List available query templates for this engine."""
+        return self.get_query_loader().list_queries(self.get_engine_name())
+
+    @classmethod
+    def get_schema_loader(cls) -> SchemaLoader:
+        """Get the shared schema loader instance."""
+        if cls._schema_loader is None:
+            cls._schema_loader = SchemaLoader()
+        return cls._schema_loader
+
+    def load_schema_template(self, schema_name: str) -> Optional[SchemaTemplate]:
+        """Load and cache a schema template for this engine."""
+        if schema_name in self._schema_templates:
+            return self._schema_templates[schema_name]
+
+        engine_name = self.get_engine_name()
+        loader = self.get_schema_loader()
+        template = loader.load(engine_name, schema_name)
+        if template:
+            self._schema_templates[schema_name] = template
+        return template
+
+    def list_available_schemas(self) -> list[str]:
+        """List available schema templates for this engine."""
+        return self.get_schema_loader().list_schemas(self.get_engine_name())
+
+    def execute_query(
+        self,
+        index_name: str,
+        query_name: str,
+        **params: Any,
+    ) -> dict[str, Any]:
+        """Execute a query using a template."""
+        template = self.load_query_template(query_name)
+        if template is None:
+            logger.error("Query template '%s' not found for engine '%s'", query_name, self.get_engine_name())
+            return {"hits": {"hits": []}, "took": None, "_client_latency_ms": None}
+
+        errors = template.validate_params(**params)
+        if errors:
+            logger.error("Query parameter validation failed: %s", errors)
+            return {"hits": {"hits": []}, "took": None, "_client_latency_ms": None}
+
+        query_dsl = template.render(**params)
+        return self._timed_search(index_name, query_dsl)
+
+    @abstractmethod
+    def get_engine_name(self) -> str:
+        """Return the engine name used for loading query templates."""
+        pass
 
     @abstractmethod
     def connect(self) -> bool:
@@ -21,8 +100,7 @@ class VectorSearchEngine(ABC):
     def create_index(
         self,
         index_name: str,
-        dataset_config: dict[str, Any],
-        embedding_dimensions: int = 128,
+        schema_name: str,
     ) -> bool:
         pass
 
@@ -124,8 +202,8 @@ class VectorSearchEngine(ABC):
         index_name: str,
         action_generator: Iterator[dict[str, Any]],
         total: Optional[int] = None,
-        chunk_size: int = 2000,
-        thread_count: int = 4,
+        chunk_size: int = 5000,
+        thread_count: int = 8,
     ) -> tuple[int, int]:
         """
         Streaming ingestion using parallel_bulk with a generator.
@@ -150,25 +228,36 @@ class VectorSearchEngine(ABC):
         successes = 0
         errors = 0
 
+        # Disable refresh during bulk ingestion for better performance
+        try:
+            self._client.indices.put_settings(
+                index=index_name,
+                body={"index": {"refresh_interval": "-1"}},
+            )
+            logger.info("Disabled refresh_interval for faster ingestion")
+        except Exception as e:
+            logger.warning("Could not disable refresh_interval: %s", e)
+
         logger.info(
             "Starting streaming ingestion (chunk_size=%d, threads=%d)",
             chunk_size,
             thread_count,
         )
 
+        log_interval = 100_000  # Log every 100K docs
+        last_logged = 0
+        start_time = time.time()
+
         try:
-            for success, info in tqdm(
-                parallel_bulk_fn(
-                    client=self._client,
-                    actions=_action_wrapper(),
-                    chunk_size=chunk_size,
-                    thread_count=thread_count,
-                    raise_on_error=False,
-                    raise_on_exception=False,
-                ),
-                total=total,
-                desc=f"Ingesting to '{index_name}'",
-                unit="doc",
+            for success, info in parallel_bulk_fn(
+                client=self._client,
+                actions=_action_wrapper(),
+                chunk_size=chunk_size,
+                thread_count=thread_count,
+                queue_size=thread_count * 2,  # Buffer chunks for smoother throughput
+                raise_on_error=False,
+                raise_on_exception=False,
+                request_timeout=120,  # 2 min timeout per bulk request
             ):
                 if success:
                     successes += 1
@@ -177,29 +266,52 @@ class VectorSearchEngine(ABC):
                     if errors <= 5:
                         logger.warning("Ingest error: %s", info)
 
-            logger.info("Ingestion complete: %d successes, %d errors", successes, errors)
+                processed = successes + errors
+                if processed - last_logged >= log_interval:
+                    elapsed = time.time() - start_time
+                    rate = processed / elapsed if elapsed > 0 else 0
+                    pct = (processed / total * 100) if total else 0
+                    logger.info(
+                        "Ingested %d / %d docs (%.1f%%) - %.0f docs/sec",
+                        processed, total or 0, pct, rate
+                    )
+                    last_logged = processed
+
+            elapsed = time.time() - start_time
+            rate = successes / elapsed if elapsed > 0 else 0
+            logger.info(
+                "Ingestion complete: %d successes, %d errors in %.1fs (%.0f docs/sec)",
+                successes, errors, elapsed, rate
+            )
             return successes, errors
         except Exception as exc:
             logger.exception("Error during streaming ingestion")
             return successes, errors + 1
+        finally:
+            # Re-enable refresh and force a refresh to make docs searchable
+            try:
+                self._client.indices.put_settings(
+                    index=index_name,
+                    body={"index": {"refresh_interval": "1s"}},
+                )
+                self._client.indices.refresh(index=index_name)
+                logger.info("Re-enabled refresh_interval and refreshed index")
+            except Exception as e:
+                logger.warning("Could not re-enable refresh_interval: %s", e)
 
     @abstractmethod
     def _get_bulk_helpers(self) -> tuple:
         """Return (bulk, parallel_bulk) functions for the engine's client library."""
         pass
 
-    @abstractmethod
-    def vector_search(
+    def search(
         self,
         index_name: str,
-        query_vector: list[float],
-        vector_field: str,
-        size: int,
-        num_candidates: int,
-        rescore: int,
-        filter_query: Optional[dict[str, Any]] = None,
+        query_name: str,
+        **params: Any,
     ) -> dict[str, Any]:
-        pass
+        """Execute a search using the named query template with given parameters."""
+        return self.execute_query(index_name=index_name, query_name=query_name, **params)
 
     def parse_search_response(
         self,

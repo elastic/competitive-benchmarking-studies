@@ -1,0 +1,19 @@
+{
+  "name": "ecommerce_filtered_knn",
+  "description": "Qdrant collection config for filtered k-NN search with binary quantization",
+  "template": {
+    "vector_size": 128,
+    "distance": "cosine",
+    "shard_number": 3,
+    "replication_factor": 2,
+    "hnsw_config": {
+      "m": 16,
+      "ef_construct": 100
+    },
+    "quantization_config": {
+      "binary": {
+        "always_ram": true
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "ecommerce_filtered_knn",
+  "description": "Filtered k-NN search using Elasticsearch BBQ HNSW with rescore",
+  "template": {
+    "query": {
+      "knn": {
+        "field": "search_catalog_embedding",
+        "query_vector": "{{query_vector}}",
+        "k": "{{k}}",
+        "num_candidates": "{{num_candidates}}",
+        "rescore_vector": {
+          "oversample": "{{rescore}}"
+        },
+        "filter": {
+          "term": {
+            "valid": true
+          }
+        }
+      }
+    },
+    "size": "{{size}}",
+    "_source": {
+      "excludes": ["search_catalog_embedding"]
+    }
+  }
+}
