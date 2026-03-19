@@ -2,6 +2,8 @@
 
 This benchmark compares approximate nearest neighbor (ANN) vector search performance between **Elasticsearch 9.3** and **OpenSearch 3.5** using their respective quantized vector indexing strategies.
 
+> **Note:** This study uses **Jingra v0.1.0**. To reproduce this benchmark, checkout the `v0.1.0` tag from the top-level `jingra/` directory in this repository.
+
 ## Configuration
 
 |                     | Elasticsearch 9.3         | OpenSearch 3.5               |
@@ -39,7 +41,18 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 
 ## Reproducing the Benchmark
 
-See [jingra/README.md](jingra/README.md) for instructions on running the benchmark tool.
+This study uses **Jingra v0.1.0**. To reproduce:
+
+```bash
+# Navigate to the jingra directory at the repo root
+cd ../../jingra
+
+# Checkout the version used for this study
+git checkout v0.1.0
+
+# Install and run (see jingra/README.md for detailed instructions)
+uv pip install -e .
+```
 
 ## Infrastructure Setup
 
