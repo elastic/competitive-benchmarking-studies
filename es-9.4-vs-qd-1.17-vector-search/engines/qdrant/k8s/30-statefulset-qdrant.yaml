@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qdrant
+  namespace: default
+spec:
+  serviceName: qdrant-headless
+  replicas: ${workerCount}
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: qdrant-nodepool
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qdrant
+                topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: entrypoint
+          configMap:
+            name: qdrant-cluster-entrypoint
+            defaultMode: 0755
+        - name: qdrant-tls
+          secret:
+            secretName: qdrant-tls
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v${engineVersion}
+          command: ["/bin/sh", "/qdrant/entrypoint.sh"]
+          env:
+            - name: QDRANT__CLUSTER__ENABLED
+              value: "true"
+            - name: QDRANT__CLUSTER__P2P__PORT
+              value: "6335"
+            - name: QDRANT__SERVICE__ENABLE_TLS
+              value: "true"
+            - name: QDRANT__TLS__CERT
+              value: /tls/tls.crt
+            - name: QDRANT__TLS__KEY
+              value: /tls/tls.key
+            - name: QDRANT__SERVICE__API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-api-key
+                  key: api-key
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+            - containerPort: 6335
+              name: p2p
+          volumeMounts:
+            - name: qdrant-storage
+              mountPath: /qdrant/storage
+            - name: entrypoint
+              mountPath: /qdrant/entrypoint.sh
+              subPath: entrypoint.sh
+              readOnly: true
+            - name: qdrant-tls
+              mountPath: /tls
+              readOnly: true
+          resources:
+            requests:
+              memory: "${memoryRequest}"
+              cpu: "${cpuRequest}"
+            limits:
+              memory: "${memoryLimit}"
+              cpu: "${cpuLimit}"
+          # TCP probes: HTTPS + kubelet cert verification and API-key headers make httpGet brittle for self-signed certs.
+          livenessProbe:
+            tcpSocket:
+              port: 6333
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: qdrant-storage
+      spec:
+        storageClassName: "${storageClassName}"
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: "${storageSize}"

@@ -1,0 +1,15 @@
+{
+  "query": {
+    "knn": {
+      "field": "embedding",
+      "query_vector": "{{query_vector}}",
+      "k": "{{k}}",
+      "visit_percentage": "{{visit_percentage}}",
+      "rescore_vector": {
+        "oversample": "{{oversample}}"
+      }
+    }
+  },
+  "size": "{{size}}",
+  "_source": false
+}

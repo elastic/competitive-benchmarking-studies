@@ -1,0 +1,19 @@
+{
+  "vectors": {
+    "size": 768,
+    "distance": "Cosine",
+    "on_disk": true
+  },
+  "shard_number": 3,
+  "replication_factor": 2,
+  "hnsw_config": {
+    "m": 16,
+    "ef_construct": 100
+  },
+  "quantization_config": {
+    "binary": {
+      "encoding": "two_bits",
+      "always_ram": true
+    }
+  }
+}

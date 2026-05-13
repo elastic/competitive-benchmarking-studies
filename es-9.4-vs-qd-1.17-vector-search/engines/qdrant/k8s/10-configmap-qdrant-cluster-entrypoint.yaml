@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qdrant-cluster-entrypoint
+  namespace: default
+data:
+  entrypoint.sh: |
+    #!/bin/sh
+    set -e
+    # Each peer must advertise its own P2P URI; followers also need --bootstrap (see Qdrant distributed docs).
+    SELF_URI="http://${HOSTNAME}.qdrant-headless.default.svc:6335"
+    BOOTSTRAP_URI="http://qdrant-0.qdrant-headless.default.svc:6335"
+    if [ "$HOSTNAME" = "qdrant-0" ]; then
+      exec /qdrant/qdrant --uri "$SELF_URI"
+    else
+      exec /qdrant/qdrant --uri "$SELF_URI" --bootstrap "$BOOTSTRAP_URI"
+    fi

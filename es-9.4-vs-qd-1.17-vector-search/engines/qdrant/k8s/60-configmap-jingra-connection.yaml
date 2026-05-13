@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jingra-connection
+  namespace: default
+data:
+  QDRANT_URL: "https://qdrant-benchmark.default.svc.cluster.local:6334"

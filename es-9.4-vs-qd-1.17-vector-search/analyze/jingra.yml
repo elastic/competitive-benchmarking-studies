@@ -1,0 +1,26 @@
+analysis:
+  engines:
+    - elasticsearch
+    - qdrant
+
+  results_cluster:
+    url_env: RESULTS_ES_URL
+    user_env: RESULTS_ES_USER
+    password_env: RESULTS_ES_PASSWORD
+    index: jingra-results
+
+  output_directory: /output
+
+  latency_metrics:
+    - latency_avg
+    # - latency_median
+    # - latency_p90
+    - latency_p95
+    # - latency_p99
+    # - server_latency_avg
+    # - server_latency_median
+    # - server_latency_p90
+    # - server_latency_p95
+    # - server_latency_p99
+
+  generate_plots: true

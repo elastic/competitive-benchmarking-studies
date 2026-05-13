@@ -1,0 +1,62 @@
+engine: "elasticsearch"
+
+elasticsearch:
+  url_env: "ELASTICSEARCH_URL"
+  user_env: "ELASTICSEARCH_USER"
+  password_env: "ENGINE_PASSWORD"
+  query_dump_directory: ./query-dumps
+
+dataset: "wiki-dpr-e5-768"
+
+datasets:
+  wiki-dpr-e5-768:
+    type: "wiki-dpr-e5-768-knn"
+    index_name: "wiki-dpr-e5-768"
+    vector_size: 768
+    distance: "cosine"
+    schema_name: "wiki-dpr-e5-768-knn"
+    query_name: "wiki-dpr-e5-768-knn"
+    path:
+      data_path: "datasets/wiki-dpr-e5-768/data.parquet"
+      queries_path: "datasets/wiki-dpr-e5-768/queries.parquet"
+      data_url_env: "DATASET_DATA_URL"
+      queries_url_env: "DATASET_QUERIES_URL"
+    data_mapping:
+      id_field: "id"
+      vector_field: "embedding"
+    queries_mapping:
+      query_vector_field: "embedding"
+      ground_truth_field: "closest_ids"
+    param_groups:
+      recall@100:
+        - { size: 100, k: 100, visit_percentage: 1, oversample: 3 } # 0.8871
+        - { size: 100, k: 100, visit_percentage: 1.5, oversample: 3 } # 0.9197
+        - { size: 100, k: 100, visit_percentage: 2, oversample: 3 } # 0.9390
+        - { size: 100, k: 100, visit_percentage: 2.5, oversample: 3 } # 0.9515
+        - { size: 100, k: 100, visit_percentage: 3, oversample: 3 } # 0.9599
+        - { size: 100, k: 100, visit_percentage: 3.5, oversample: 3 } # 0.9666
+        - { size: 100, k: 100, visit_percentage: 4, oversample: 3 } # 0.9712
+        - { size: 100, k: 100, visit_percentage: 4.5, oversample: 3 } # 0.9753
+        - { size: 100, k: 100, visit_percentage: 5, oversample: 3 } # 0.9784
+        - { size: 100, k: 100, visit_percentage: 5.5, oversample: 3 } # 0.9808
+
+load:
+  threads: 4
+  batch_size: 1000
+  queue_capacity: 10
+  forcemerge: true
+
+evaluation:
+  warmup_workers: 4
+  measurement_workers: 4
+  warmup_rounds: 3
+  measurement_rounds: 1
+
+output:
+  sinks:
+    - type: "elasticsearch"
+      config:
+        url_env: "RESULTS_ES_URL"
+        user_env: "RESULTS_ES_USER"
+        password_env: "RESULTS_ES_PASSWORD"
+        index: "jingra-results"

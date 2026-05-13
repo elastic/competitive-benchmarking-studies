@@ -1,0 +1,21 @@
+{
+  "mappings": {
+    "properties": {
+      "embedding": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 768,
+        "index": true,
+        "similarity": "cosine",
+        "index_options": {
+          "type": "bbq_disk",
+          "bits": 2
+        }
+      }
+    }
+  },
+  "settings": {
+    "number_of_shards": "3",
+    "number_of_replicas": "1"
+  }
+}
