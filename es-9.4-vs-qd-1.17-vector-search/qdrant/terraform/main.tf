@@ -14,13 +14,12 @@ variable "project_id" {
 }
 
 provider "google" {
-  project     = var.project_id
-  region      = "us-central1"
-  credentials = file(abspath("${path.root}/../../../shared/secrets/credentials.json"))
+  project = var.project_id
+  region  = "us-central1"
 }
 
 module "gke_benchmark" {
-  source = "../../../shared/infra/terraform/modules/gke-benchmark"
+  source = "../../infra/terraform/modules/gke-benchmark"
 
   cluster_name        = "qdrant-benchmark"
   main_pool_name      = "qdrant-nodepool"

@@ -1,7 +1,0 @@
-storageClassName: hyperdisk-balanced-rwo
-storageSize: 320Gi
-memoryRequest: 26Gi
-cpuRequest: 7
-memoryLimit: 26Gi
-cpuLimit: 7
-workerCount: 3

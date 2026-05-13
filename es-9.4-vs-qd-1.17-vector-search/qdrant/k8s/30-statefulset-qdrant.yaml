@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   serviceName: qdrant-headless
-  replicas: ${workerCount}
+  replicas: ${WORKER_COUNT}
   selector:
     matchLabels:
       app: qdrant
@@ -35,7 +35,7 @@ spec:
             secretName: qdrant-tls
       containers:
         - name: qdrant
-          image: qdrant/qdrant:v${engineVersion}
+          image: qdrant/qdrant:v${ENGINE_VERSION}
           command: ["/bin/sh", "/qdrant/entrypoint.sh"]
           env:
             - name: QDRANT__CLUSTER__ENABLED
@@ -72,11 +72,11 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: "${memoryRequest}"
-              cpu: "${cpuRequest}"
+              memory: "${MEMORY_REQUEST}"
+              cpu: "${CPU_REQUEST}"
             limits:
-              memory: "${memoryLimit}"
-              cpu: "${cpuLimit}"
+              memory: "${MEMORY_LIMIT}"
+              cpu: "${CPU_LIMIT}"
           # TCP probes: HTTPS + kubelet cert verification and API-key headers make httpGet brittle for self-signed certs.
           livenessProbe:
             tcpSocket:
@@ -92,9 +92,9 @@ spec:
     - metadata:
         name: qdrant-storage
       spec:
-        storageClassName: "${storageClassName}"
+        storageClassName: "${STORAGE_CLASS_NAME}"
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: "${storageSize}"
+            storage: "${STORAGE_SIZE}"

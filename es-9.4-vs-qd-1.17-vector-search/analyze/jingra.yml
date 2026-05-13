@@ -1,8 +1,4 @@
 analysis:
-  engines:
-    - elasticsearch
-    - qdrant
-
   results_cluster:
     url_env: RESULTS_ES_URL
     user_env: RESULTS_ES_USER
