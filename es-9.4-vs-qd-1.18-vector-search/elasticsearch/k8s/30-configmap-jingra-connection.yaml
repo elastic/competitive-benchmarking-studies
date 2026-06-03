@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jingra-connection
+  namespace: default
+data:
+  ELASTICSEARCH_URL: "https://es-cluster-es-internal-http.default.svc.cluster.local:9200"
+  ELASTICSEARCH_USER: "elastic"

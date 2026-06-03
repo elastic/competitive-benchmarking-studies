@@ -1,0 +1,24 @@
+# --- Terraform & GCP ---
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+.terraform.tfstate.lock.info
+
+# --- Secrets ---
+.secrets.env
+
+# --- Keys / certs ---
+*.pem
+*.key
+
+# --- Temporary files ---
+*.tmp
+*.log
+
+# --- Jingra / benchmark artifacts ---
+query-dumps/
+jingra.local.yml
+
+# --- analyze/ ---
+analyze/output/*.png

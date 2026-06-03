@@ -1,0 +1,79 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jingra-load
+  namespace: default
+  labels:
+    app: jingra
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: jingra
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: jingra-nodepool
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Never
+      containers:
+        - name: jingra
+          image: "${JINGRA_IMAGE}"
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          args: ["load", "/config/jingra.yaml"]
+          envFrom:
+            - configMapRef:
+                name: jingra-connection
+            - secretRef:
+                name: jingra-dataset-urls
+            - secretRef:
+                name: jingra-results-cluster
+                optional: true
+          env:
+            - name: JINGRA_INSECURE_TLS
+              value: "true"
+            - name: JINGRA_VERSION
+              value: "${JINGRA_VERSION}"
+            - name: JAVA_OPTS
+              value: "-Xms22g -Xmx22g"
+            - name: ENGINE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jingra-credentials
+                  key: ENGINE_PASSWORD
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: schemas
+              mountPath: /app/jingra-config/schemas
+            - name: queries
+              mountPath: /app/jingra-config/queries
+            - name: datasets
+              mountPath: /app/datasets
+            - name: results
+              mountPath: /app/results
+          resources:
+            requests:
+              memory: "26Gi"
+              cpu: "7"
+            limits:
+              memory: "26Gi"
+              cpu: "7"
+      volumes:
+        - name: config
+          configMap:
+            name: jingra-config
+        - name: schemas
+          configMap:
+            name: jingra-schemas
+        - name: queries
+          configMap:
+            name: jingra-queries
+        - name: datasets
+          persistentVolumeClaim:
+            claimName: jingra-datasets
+        - name: results
+          emptyDir: {}

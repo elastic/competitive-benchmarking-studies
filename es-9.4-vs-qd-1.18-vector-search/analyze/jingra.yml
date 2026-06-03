@@ -1,0 +1,14 @@
+analysis:
+  results_cluster:
+    url_env: RESULTS_ES_URL
+    user_env: RESULTS_ES_USER
+    password_env: RESULTS_ES_PASSWORD
+    index: jingra-results
+
+  output_directory: /output
+
+  latency_metrics:
+    - latency_avg
+    - latency_p95
+
+  generate_plots: true
