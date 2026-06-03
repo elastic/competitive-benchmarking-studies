@@ -30,19 +30,18 @@ datasets:
       ground_truth_field: "closest_ids"
     param_groups:
       recall@100:
-        - { size: 100, hnsw_ef: 10, oversampling: 3 } # 0.8716
-        - { size: 100, hnsw_ef: 50, oversampling: 3 } # 0.9327
-        - { size: 100, hnsw_ef: 60, oversampling: 3 } # 0.9423
-        - { size: 100, hnsw_ef: 70, oversampling: 3 } # 0.9492
-        - { size: 100, hnsw_ef: 80, oversampling: 3 } # 0.9549
-        - { size: 100, hnsw_ef: 90, oversampling: 3 } # 0.9592
-        - { size: 100, hnsw_ef: 100, oversampling: 3 } # 0.9628
-        - { size: 100, hnsw_ef: 150, oversampling: 3 } # 0.9628
+        - { size: 100, hnsw_ef: 10, oversampling: 3 }
+        - { size: 100, hnsw_ef: 50, oversampling: 3 }
+        - { size: 100, hnsw_ef: 100, oversampling: 3 }
+        - { size: 100, hnsw_ef: 150, oversampling: 3 }
+        - { size: 100, hnsw_ef: 200, oversampling: 3 }
+        - { size: 100, hnsw_ef: 256, oversampling: 3 }
 
 load:
   threads: 4
   batch_size: 1000
   queue_capacity: 10
+  await_index_ready: true
 
 evaluation:
   warmup_workers: 4

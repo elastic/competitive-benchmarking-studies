@@ -8,11 +8,12 @@
   "replication_factor": 2,
   "hnsw_config": {
     "m": 16,
-    "ef_construct": 100
+    "ef_construct": 256,
+    "inline_storage": true
   },
   "quantization_config": {
-    "binary": {
-      "encoding": "two_bits",
+    "turbo": {
+      "bits": "bits2",
       "always_ram": true
     }
   }

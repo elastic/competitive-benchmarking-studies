@@ -435,7 +435,8 @@ analyze: analyze-clean | $(ANALYZE_OUTPUT_DIR)
 	if [ -n "$(strip $(ENGINES))" ]; then \
 		engines_csv='$(subst ','\'',$(strip $(ENGINES)))'; \
 	else \
-		engines_csv=$$(echo '$(strip $(ALL_ENGINES))' | tr ' ' ','); \
+		engines_csv=$$(yq eval '.engines // [] | join(",")' "$$TMP"); \
+		[ -n "$$engines_csv" ] || { echo >&2 "ERROR: no engines specified — set ENGINES=... or add an 'engines' list to $(ANALYZE_CONFIG)"; exit 1; }; \
 	fi; \
 	export _ENGINES_CSV_YQ="$$engines_csv"; \
 	yq eval '.analysis.engines = (strenv(_ENGINES_CSV_YQ) | split(",") | map(trim))' \
