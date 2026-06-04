@@ -20,6 +20,23 @@ Compares ANN vector search performance using quantized HNSW indexes:
 
 See the [full benchmark details](es-9.3-vs-os-3.5-vector-search/README.md).
 
+### [Elasticsearch 9.4 vs Qdrant 1.18: Vector Search](es-9.4-vs-qd-1.18-vector-search/)
+
+Compares ANN vector search performance using on-disk quantized indexes:
+
+- **Elasticsearch 9.4** with DiskBBQ (2-bit)
+- **Qdrant 1.18** with binary quantization (two-bit encoding, on disk)
+
+**Key finding:** Elasticsearch delivers 1.6–5× lower latency at comparable recall levels, with the gap widening at higher recall targets.
+
+| Recall Target | ES 9.4 Avg Latency | QD 1.18 Avg Latency |
+| ------------- | -----------------: | ------------------: |
+| ~89%          | 107ms              | 174ms               |
+| ~95%          | 115ms              | 338ms               |
+| ~98%          | 127ms              | 681ms               |
+
+See the [full benchmark details](es-9.4-vs-qd-1.18-vector-search/README.md).
+
 ## Methodology
 
 Each benchmark in this repository follows these principles:
