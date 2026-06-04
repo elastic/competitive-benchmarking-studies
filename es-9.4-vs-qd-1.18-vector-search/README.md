@@ -11,7 +11,6 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 | **HNSW**         | Server defaults                                    | `m` = 16, `ef_construct` = 100                                   |
 | **Similarity**   | Cosine                                             | Cosine                                                           |
 | **Sharding**     | 3 shards, 1 replica                                | 3 shards, replication factor 2                                   |
-| **Post-load**    | Force merge                                        | —                                                                |
 
 ## Dataset
 
@@ -26,17 +25,17 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 
 ## Key Results (recall@100)
 
-| ~Recall | Elasticsearch 9.4.1 params      | ES avg latency (ms) | Qdrant 1.18.1 params   | QD avg latency (ms) | Speedup  |
-| ------- | ------------------------------- | ------------------: | ---------------------- | ------------------: | -------: |
-| ~89%    | `visit_percentage=1` (88.7%)    |                 107 | `hnsw_ef=10` (89.9%)   |                 174 |  **~2×** |
-| ~95%    | `visit_percentage=2.5` (95.2%)  |                 115 | `hnsw_ef=50` (95.1%)   |                 338 |  **~3×** |
-| ~98%    | `visit_percentage=4.5` (97.5%)  |                 127 | `hnsw_ef=150` (97.6%)  |                 681 |  **~5×** |
+| Recall band | Elasticsearch 9.4.1 params | ES Recall | ES avg latency (ms) | ES throughput | Qdrant 1.18.1 params | QD Recall | QD avg latency (ms) | QD throughput | Throughput speedup |
+| ----------- | -------------------------- | --------: | ------------------: | ------------: | -------------------- | --------: | ------------------: | ------------: | -----------------: |
+| ~0.89       | `visit_percentage=1`       |    0.8871 |            106.8477 |       37.0246 | `hnsw_ef=10`         |    0.8992 |            173.5722 |       22.8868 |              1.62x |
+| ~0.95       | `visit_percentage=2.5`     |    0.9517 |            114.7472 |       34.5540 | `hnsw_ef=50`         |    0.9507 |            337.6542 |       11.7907 |              2.93x |
+| ~0.975      | `visit_percentage=4.5`     |    0.9753 |            126.9115 |       31.2392 | `hnsw_ef=150`        |    0.9756 |            681.4201 |        5.8412 |              5.35x |
 
 Full per-parameter rows: `analyze/output/recall@100_full_results.csv`.
 
 ## Summary
 
-- Elasticsearch 9.4 with BBQ disk delivers **much lower average latency** than Qdrant 1.18 with binary quantization on disk at similar recall@100
+- Elasticsearch 9.4 with DiskBBQ delivers **much lower average latency** than Qdrant 1.18 with binary quantization on disk at similar recall@100
 - The gap grows with recall: **~2× faster** at ~89% recall, **~5× faster** at ~98% recall
 - ES latency is nearly flat across the recall range (~107–127 ms); Qdrant latency climbs steeply (~174–681 ms)
 
@@ -44,17 +43,17 @@ Full per-parameter rows: `analyze/output/recall@100_full_results.csv`.
 
 The following tools must be available in your PATH:
 
-| Tool | Notes |
-| ---- | ----- |
-| `gcloud` | Google Cloud SDK, authenticated (`gcloud auth login`) |
-| `terraform` | >= 1.0 |
-| `kubectl` | Configured after `make connect-k8s` |
-| `helm` | >= 3 |
-| `docker` | With Buildx enabled for the multi-arch Jingra build |
-| `make` | |
-| `yq` | YAML processor |
-| `envsubst` | Usually bundled with `gettext` |
-| `jq` | Required to compact the GCP credentials JSON (see below) |
+| Tool        | Notes                                                    |
+| ----------- | -------------------------------------------------------- |
+| `gcloud`    | Google Cloud SDK, authenticated (`gcloud auth login`)    |
+| `terraform` | >= 1.0                                                   |
+| `kubectl`   | Configured after `make connect-k8s`                      |
+| `helm`      | >= 3                                                     |
+| `docker`    | With Buildx enabled for the multi-arch Jingra build      |
+| `make`      |                                                          |
+| `yq`        | YAML processor                                           |
+| `envsubst`  | Usually bundled with `gettext`                           |
+| `jq`        | Required to compact the GCP credentials JSON (see below) |
 
 ## Reproducing the Benchmark
 
@@ -136,7 +135,7 @@ make analyze         ENGINES=elasticsearch,qdrant JINGRA_IMAGE=<image>
 
 `make analyze` writes CSVs and plots under `analyze/output/`.
 
-> **Note:** Elasticsearch `jingra-load` triggers a force merge after indexing. This is required for representative BBQ disk query performance and runs to completion before evaluation begins.
+> **Note**: `jingra-load` includes an optional await-index-ready step. Its meaning differs by engine: in Elasticsearch, it waits for background merges to complete; in Qdrant, it waits for the index to be optimized.
 
 ## Infrastructure
 
@@ -154,3 +153,12 @@ Shared infrastructure:
 
 - `infra/k8s/` — StorageClass, Jingra job manifests, dataset PVC
 - `infra/terraform/modules/gke-benchmark/` — shared GKE Terraform module
+
+## Dataset
+
+- **wiki-dpr-e5-768**: Wikipedia passages with 768-dimensional E5 embeddings
+- Approximately **21 million vectors** and **10,000 queries**
+- Benchmarks use unfiltered ANN search with `k=100`
+- Recall@100 is computed against precomputed ground truth neighbors stored in `queries.parquet`
+- Data: https://storage.googleapis.com/elastic-benchmark-datasets/wiki-dpr-e5-768/data.parquet
+- Queries: https://storage.googleapis.com/elastic-benchmark-datasets/wiki-dpr-e5-768/queries.parquet
