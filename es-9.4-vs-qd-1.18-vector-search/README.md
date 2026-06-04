@@ -60,13 +60,13 @@ The following tools must be available in your PATH:
 
 ### 1. Build the Jingra image
 
-This benchmark requires **Jingra v0.2.2**. Clone the repo, check out the tag, and build a multi-arch image (requires Docker Buildx):
+This benchmark requires **Jingra v0.2.3**. Clone the repo, check out the tag, and build a multi-arch image (requires Docker Buildx):
 
 ```bash
 git clone https://github.com/elastic/jingra.git
 cd jingra
-git checkout v0.2.2
-make build image=your-registry.example.com/your-namespace/jingra:0.2.2
+git checkout v0.2.3
+make build image=your-registry.example.com/your-namespace/jingra:0.2.3
 ```
 
 `make build` runs all tests then pushes a `linux/amd64,linux/arm64/v8` image to your registry.
