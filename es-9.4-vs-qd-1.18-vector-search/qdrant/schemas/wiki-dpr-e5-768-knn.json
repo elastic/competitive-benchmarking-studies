@@ -8,8 +8,7 @@
   "replication_factor": 2,
   "hnsw_config": {
     "m": 16,
-    "ef_construct": 256,
-    "inline_storage": true
+    "ef_construct": 256
   },
   "quantization_config": {
     "turbo": {
