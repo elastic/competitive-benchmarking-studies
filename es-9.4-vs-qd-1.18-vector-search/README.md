@@ -7,21 +7,24 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 |                  | Elasticsearch 9.4                                  | Qdrant 1.18                                                      |
 | ---------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
 | **Vector index** | `dense_vector` with `index_options.type: bbq_disk` | HNSW + binary quantization (`on_disk: true`, `always_ram: true`) |
-| **Quantization** | BBQ (1-bit)                                        | Two-bits (`encoding: two_bits`)                                  |
-| **HNSW**         | Server defaults                                    | `m` = 16, `ef_construct` = 100                                   |
+| **Quantization** | 2-bit (`"bits": 2`)                                | Two-bits (`encoding: two_bits`)                                  |
+| **HNSW**         | -                                                  | `m` = 16, `ef_construct` = 100                                   |
 | **Similarity**   | Cosine                                             | Cosine                                                           |
 | **Sharding**     | 3 shards, 1 replica                                | 3 shards, replication factor 2                                   |
 
 ## Dataset
 
 - **wiki-dpr-e5-768** — Wikipedia passages with **768-dimensional** E5 embeddings
+- Approximately **21 million vectors** and **10,000 queries**
 - recall@100 sweep over engine tuning parameters (ES: `visit_percentage`; Qdrant: `hnsw_ef`)
-- Pre-computed ground truth in the query parquet for recall calculation
+- Recall@100 is computed against precomputed ground truth neighbors stored in `queries.parquet`
+- Data: https://storage.googleapis.com/elastic-benchmark-datasets/wiki-dpr-e5-768/data.parquet
+- Queries: https://storage.googleapis.com/elastic-benchmark-datasets/wiki-dpr-e5-768/queries.parquet
 
 ## Infrastructure
 
-- **3 data nodes** per cluster (`WORKER_COUNT` in `.env`; `n4-standard-8`)
-- **320 Gi** persistent volume per data pod on **hyperdisk-balanced** (160 000 IOPS / 2 400 MB/s); StorageClass in `infra/k8s/storage-class.yml`
+- **3 data nodes** per cluster (`WORKER_COUNT` in `.env`; `n4-standard-8`) in GCP
+- **200 Gi** persistent volume per data pod on **hyperdisk-balanced** (160 000 IOPS / 2 400 MB/s); StorageClass in `infra/k8s/storage-class.yml`
 
 ## Key Results (recall@100)
 
@@ -35,8 +38,8 @@ Full per-parameter rows: `analyze/output/recall@100_full_results.csv`.
 
 ## Summary
 
-- Elasticsearch 9.4 with DiskBBQ delivers **much lower average latency** than Qdrant 1.18 with binary quantization on disk at similar recall@100
-- The gap grows with recall: **~2× faster** at ~89% recall, **~5× faster** at ~98% recall
+- Elasticsearch 9.4 with DiskBBQ delivers **lower average latency** than Qdrant 1.18 with binary quantization on disk at similar recall@100
+- The gap grows with recall: **~1.6× faster** at ~89% recall, **~5× faster** at ~98% recall
 - ES latency is nearly flat across the recall range (~107–127 ms); Qdrant latency climbs steeply (~174–681 ms)
 
 ## Prerequisites
@@ -136,29 +139,3 @@ make analyze         ENGINES=elasticsearch,qdrant JINGRA_IMAGE=<image>
 `make analyze` writes CSVs and plots under `analyze/output/`.
 
 > **Note**: `jingra-load` includes an optional await-index-ready step. Its meaning differs by engine: in Elasticsearch, it waits for background merges to complete; in Qdrant, it waits for the index to be optimized.
-
-## Infrastructure
-
-Terraform for provisioning each GKE cluster:
-
-- `elasticsearch/terraform/` — Elasticsearch cluster
-- `qdrant/terraform/` — Qdrant cluster
-
-Kubernetes manifests for deploying each engine:
-
-- `elasticsearch/k8s/` — ECK Elasticsearch + Kibana
-- `qdrant/k8s/` — Qdrant StatefulSet + services
-
-Shared infrastructure:
-
-- `infra/k8s/` — StorageClass, Jingra job manifests, dataset PVC
-- `infra/terraform/modules/gke-benchmark/` — shared GKE Terraform module
-
-## Dataset
-
-- **wiki-dpr-e5-768**: Wikipedia passages with 768-dimensional E5 embeddings
-- Approximately **21 million vectors** and **10,000 queries**
-- Benchmarks use unfiltered ANN search with `k=100`
-- Recall@100 is computed against precomputed ground truth neighbors stored in `queries.parquet`
-- Data: https://storage.googleapis.com/elastic-benchmark-datasets/wiki-dpr-e5-768/data.parquet
-- Queries: https://storage.googleapis.com/elastic-benchmark-datasets/wiki-dpr-e5-768/queries.parquet
