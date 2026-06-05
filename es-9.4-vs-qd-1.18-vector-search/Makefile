@@ -99,8 +99,14 @@ terraform-apply: terraform-init
 	cd $(STACK_DIR)terraform && terraform apply $(TF_CLI_VARS)
 
 terraform-destroy: terraform-init
-	@echo >&2 "WARNING: This will delete ALL resources."
+	@echo >&2 "WARNING: This will delete ALL resources (Kubernetes workloads, PVCs, and GKE cluster)."
 	@read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ]
+	@echo >&2 "Cleaning up Kubernetes resources before destroying cluster..."
+	@$(MAKE) --no-print-directory ENGINE=$(ENGINE) connect-k8s k8s-delete-impl \
+	 && kubectl delete -f '$(REPO_ROOT)infra/k8s/jingra-datasets-pvc.yml' --ignore-not-found \
+	 && { [[ ! -f '$(REPO_ROOT)infra/k8s/storage-class.yml' ]] \
+	      || kubectl delete -f '$(REPO_ROOT)infra/k8s/storage-class.yml' --ignore-not-found; } \
+	 || echo >&2 "WARNING: Kubernetes cleanup incomplete (cluster may be unreachable) — continuing with terraform destroy"
 	@$(SOURCE_ENV) \
 	cd $(STACK_DIR)terraform && terraform destroy $(TF_CLI_VARS)
 
