@@ -8,7 +8,7 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 | ---------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
 | **Vector index** | `dense_vector` with `index_options.type: bbq_disk` | HNSW + binary quantization (`on_disk: true`, `always_ram: true`) |
 | **Quantization** | 2-bit (`"bits": 2`)                                | Two-bits (`encoding: two_bits`)                                  |
-| **HNSW**         | -                                                  | `m` = 16, `ef_construct` = 100                                   |
+| **HNSW**         | -                                                  | `m` = 16, `ef_construct` = 256                                   |
 | **Similarity**   | Cosine                                             | Cosine                                                           |
 | **Sharding**     | 3 shards, 1 replica                                | 3 shards, replication factor 2                                   |
 
