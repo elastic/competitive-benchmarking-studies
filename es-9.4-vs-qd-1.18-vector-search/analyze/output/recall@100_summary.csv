@@ -1,7 +1,11 @@
 RecallAtN,Engine,ParamKey,Recall,Recall Rounded,Latency_Avg,Latency_P95,Throughput,Speedup
-recall@100,elasticsearch,k=100_oversample=3_size=100_visit_percentage=1,0.8871,0.89,106.8477,147.3294,37.0246,2
-recall@100,qdrant,hnsw_ef=10_oversampling=3_size=100,0.8992,0.90,173.5722,340.9453,22.8868,
-recall@100,qdrant,hnsw_ef=50_oversampling=3_size=100,0.9507,0.95,337.6542,439.9833,11.7907,
-recall@100,elasticsearch,k=100_oversample=3_size=100_visit_percentage=2.5,0.9517,0.95,114.7472,158.1076,34.5540,3
-recall@100,elasticsearch,k=100_oversample=3_size=100_visit_percentage=4.5,0.9753,0.98,126.9115,176.4138,31.2392,5
-recall@100,qdrant,hnsw_ef=150_oversampling=3_size=100,0.9756,0.98,681.4201,853.7280,5.8412,
+recall@100,qdrant,hnsw_ef=50_oversampling=1_size=100,0.8694,0.87,315.7849,503.4754,12.6290,
+recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=1,0.8789,0.88,135.0802,218.4940,29.3430,2
+recall@100,qdrant,hnsw_ef=100_oversampling=1_size=100,0.9287,0.93,895.9933,1213.0448,4.4493,
+recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=2,0.9317,0.93,124.8460,183.6314,31.8225,7
+recall@100,qdrant,hnsw_ef=150_oversampling=1_size=100,0.9518,0.95,884.7236,1195.2603,4.5066,
+recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=3,0.9532,0.95,123.2760,183.8379,32.2364,7
+recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=3.5,0.9599,0.96,122.5559,184.2858,32.4469,7
+recall@100,qdrant,hnsw_ef=200_oversampling=1_size=100,0.9640,0.96,883.2114,1188.6597,4.5143,
+recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=5,0.9722,0.97,122.5761,187.3536,32.4221,7
+recall@100,qdrant,hnsw_ef=256_oversampling=1_size=100,0.9722,0.97,881.9643,1185.4948,4.5192,
