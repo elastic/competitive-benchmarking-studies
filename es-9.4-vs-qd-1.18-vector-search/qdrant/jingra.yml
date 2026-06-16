@@ -30,12 +30,11 @@ datasets:
       ground_truth_field: "closest_ids"
     param_groups:
       recall@100:
-        - { size: 100, hnsw_ef: 10, oversampling: 3 }
-        - { size: 100, hnsw_ef: 50, oversampling: 3 }
-        - { size: 100, hnsw_ef: 100, oversampling: 3 }
-        - { size: 100, hnsw_ef: 150, oversampling: 3 }
-        - { size: 100, hnsw_ef: 200, oversampling: 3 }
-        - { size: 100, hnsw_ef: 256, oversampling: 3 }
+        - { size: 100, hnsw_ef: 50, oversampling: 1 }
+        - { size: 100, hnsw_ef: 100, oversampling: 1 }
+        - { size: 100, hnsw_ef: 150, oversampling: 1 }
+        - { size: 100, hnsw_ef: 200, oversampling: 1 }
+        - { size: 100, hnsw_ef: 256, oversampling: 1 }
 
 load:
   threads: 4

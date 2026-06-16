@@ -24,23 +24,24 @@ This benchmark compares approximate nearest neighbor (ANN) vector search perform
 ## Infrastructure
 
 - **3 data nodes** per cluster (`WORKER_COUNT` in `.env`; `n4-standard-8`) in GCP
-- **200 Gi** persistent volume per data pod on **hyperdisk-balanced** (160 000 IOPS / 2 400 MB/s); StorageClass in `infra/k8s/storage-class.yml`
+- **200 Gi** persistent volume per data pod on **hyperdisk-balanced** (baseline 4 200 IOPS / 440 MB/s, no explicit provisioning); StorageClass in `infra/k8s/storage-class.yml`
 
 ## Key Results (recall@100)
 
 | Recall band | Elasticsearch 9.4.1 params | ES Recall | ES avg latency (ms) | ES throughput | Qdrant 1.18.1 params | QD Recall | QD avg latency (ms) | QD throughput | Throughput speedup |
 | ----------- | -------------------------- | --------: | ------------------: | ------------: | -------------------- | --------: | ------------------: | ------------: | -----------------: |
-| ~0.89       | `visit_percentage=1`       |    0.8871 |            106.8477 |       37.0246 | `hnsw_ef=10`         |    0.8992 |            173.5722 |       22.8868 |              1.62x |
-| ~0.95       | `visit_percentage=2.5`     |    0.9517 |            114.7472 |       34.5540 | `hnsw_ef=50`         |    0.9507 |            337.6542 |       11.7907 |              2.93x |
-| ~0.975      | `visit_percentage=4.5`     |    0.9753 |            126.9115 |       31.2392 | `hnsw_ef=150`        |    0.9756 |            681.4201 |        5.8412 |              5.35x |
+| ~0.87       | `visit_percentage=1`       |    0.8789 |            135.0802 |       29.3430 | `hnsw_ef=50`         |    0.8694 |            315.7849 |       12.6290 |              2.32x |
+| ~0.95       | `visit_percentage=3`       |    0.9532 |            123.2760 |       32.2364 | `hnsw_ef=150`        |    0.9518 |            884.7236 |        4.5066 |              7.15x |
+| ~0.97       | `visit_percentage=5`       |    0.9722 |            122.5761 |       32.4221 | `hnsw_ef=256`        |    0.9722 |            881.9643 |        4.5192 |              7.17x |
 
 Full per-parameter rows: `analyze/output/recall@100_full_results.csv`.
 
 ## Summary
 
 - Elasticsearch 9.4 with DiskBBQ delivers **lower average latency** than Qdrant 1.18 with binary quantization on disk at similar recall@100
-- The gap grows with recall: **~1.6× faster** at ~89% recall, **~5× faster** at ~98% recall
-- ES latency is nearly flat across the recall range (~107–127 ms); Qdrant latency climbs steeply (~174–681 ms)
+- The gap grows with recall: **~2.3× faster** at ~87% recall, **~7× faster** at ~95–97% recall
+- ES latency is nearly flat across the recall range (~122–135 ms); Qdrant latency climbs steeply (~316–882 ms)
+- ES latency is insensitive to storage speed (page-cache bound); Qdrant latency scales with disk IOPS (disk-read bound during rescore)
 
 ## Prerequisites
 
