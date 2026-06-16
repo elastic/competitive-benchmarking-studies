@@ -1,5 +1,4 @@
 RecallAtN,Engine,ParamKey,Recall,Recall Rounded,Latency_Avg,Latency_P95,Throughput,Speedup
-recall@100,qdrant,hnsw_ef=10_oversampling=1_size=100,0.7580,0.76,7.3616,12.1421,520.8333,
 recall@100,qdrant,hnsw_ef=50_oversampling=1_size=100,0.8694,0.87,315.7849,503.4754,12.6290,
 recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=1,0.8789,0.88,135.0802,218.4940,29.3430,2
 recall@100,elasticsearch,k=100_oversample=1_size=100_visit_percentage=1.5,0.9123,0.91,127.8286,195.2318,31.1107,
