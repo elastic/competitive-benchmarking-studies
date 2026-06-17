@@ -1,0 +1,48 @@
+multitenancy_enabled: false
+
+common:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /tmp/mimir-data
+
+blocks_storage:
+  backend: filesystem
+  filesystem:
+    dir: /tmp/mimir-data/blocks
+  tsdb:
+    head_chunks_write_buffer_size_bytes: 8388608    # 8 MB (max allowed) — fewer small fsyncs
+    head_compaction_interval: 15m
+    wal_compression_enabled: true
+
+compactor:
+  data_dir: /tmp/mimir-data/compactor
+  compaction_interval: 3m
+  deletion_delay: 0s
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+
+ingester:
+  ring:
+    replication_factor: 1
+
+server:
+  http_listen_port: 8080
+  grpc_listen_port: 9095
+  log_level: warn
+  grpc_server_max_recv_msg_size: 104857600
+  grpc_server_max_send_msg_size: 104857600
+
+distributor:
+  remote_timeout: 2m
+
+
+limits:
+  out_of_order_time_window: 270m
+  # Remove ingestion rate cap — default 10k samples/s throttles replay ingest
+  ingestion_rate: 10000000
+  ingestion_burst_size: 100000000
+  max_global_series_per_user: 0
+
