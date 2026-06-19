@@ -44,8 +44,8 @@ Measures bytes per data point after ingesting 225M OTel hostmetrics samples (100
 | Engine        | Version        | Bytes/DP |
 |---------------|----------------|----------|
 | Elasticsearch | 9.5.0-SNAPSHOT | **3.02** |
+| Prometheus    | 3.12.0         | 3.49     |
 | Mimir         | 3.1.0          | 3.88     |
-| Prometheus    | 3.12.0         | 4.71     |
 
 See the [full benchmark details](elasticsearch-9.5-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/README.md).
 

@@ -23,7 +23,7 @@ Usage:
   SCALE=100 START_NOW_MINUS=10m          python3 generate_data.py
 """
 
-import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile, time, urllib.request, urllib.error
+import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile, time, urllib.parse, urllib.request, urllib.error
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -131,6 +131,27 @@ def otel_config() -> str:
     extra_headers = ('    headers:\n      X-Scope-OrgID: anonymous\n'
                      if ENGINE == "mimir" else "")
 
+    # Prometheus's OTLP handler has a ~10MB request body limit. Binary protobuf is
+    # ~75 bytes/sample so 20k samples ≈ 1.5MB — well under the limit and much faster
+    # than JSON. No compression: Prometheus 3.x does not reliably decompress
+    # Content-Encoding: gzip on OTLP requests. ES and Mimir handle large gzip
+    # batches without issue.
+    if ENGINE == "prometheus":
+        encoding_line = ""
+        compression_line = ""
+        batch_size = 20000
+        batch_timeout = "5s"
+    elif ENGINE == "mimir":
+        encoding_line = ""
+        compression_line = ""
+        batch_size = 100000
+        batch_timeout = "10s"
+    else:
+        encoding_line = ""
+        compression_line = "    compression: gzip\n"
+        batch_size = 100000
+        batch_timeout = "10s"
+
     return f"""\
 receivers:
   metricsgen:
@@ -147,14 +168,13 @@ receivers:
 processors:
 {transform_stmts}
   batch:
-    send_batch_size: 100000
-    timeout: 10s
+    send_batch_size: {batch_size}
+    timeout: {batch_timeout}
 
 exporters:
   {exporter_name}:
     endpoint: {OTLP_ENDPOINT}
-    compression: gzip
-{extra_headers}    tls:
+{encoding_line}{compression_line}{extra_headers}    tls:
       insecure: true
     sending_queue:
       enabled: true
@@ -199,9 +219,10 @@ def _es_request(method, path):
         return e.code, json.loads(e.read() or b"null")
 
 
-def _prom_metric(base_url: str, name: str) -> float:
+def _prom_metric(base_url: str, query: str) -> float:
     try:
-        with urllib.request.urlopen(f"{base_url}/api/v1/query?query={name}") as r:
+        qs = urllib.parse.urlencode({"query": query})
+        with urllib.request.urlopen(f"{base_url}/api/v1/query?{qs}") as r:
             result = json.loads(r.read()).get("data", {}).get("result", [])
         return float(result[0]["value"][1]) if result else 0.0
     except Exception:
@@ -211,6 +232,19 @@ def _prom_metric(base_url: str, name: str) -> float:
 def _dir_size(path: str) -> int:
     total = 0
     for root, _, files in os.walk(path):
+        for fname in files:
+            try:
+                total += os.path.getsize(os.path.join(root, fname))
+            except OSError:
+                pass
+    return total
+
+
+def _dir_size_excl(path: str, excl: set) -> int:
+    """Directory size excluding named subdirectories (e.g. WAL, WBL, snapshots)."""
+    total = 0
+    for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if d not in excl]
         for fname in files:
             try:
                 total += os.path.getsize(os.path.join(root, fname))
@@ -257,31 +291,64 @@ def report_elasticsearch(datapoints: int):
 
 
 def report_prometheus(datapoints: int):
+    """Measure Prometheus storage, WAL excluded.
+
+    Reads prometheus_tsdb_head_chunks_storage_size_bytes +
+    prometheus_tsdb_storage_blocks_bytes directly from the /metrics endpoint.
+    This is equivalent to the snapshot methodology used by the Prometheus team
+    (https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh)
+    — both approaches capture blocks + head chunks and exclude the WAL.
+
+    We read from /metrics rather than the filesystem because on Docker Desktop
+    (macOS), mmap'd files written inside the container (chunks_head/) are not
+    reliably visible on the host through bind mounts.
+
+    Denominator is `datapoints` from metricsgenreceiver — the authoritative count
+    of what was sent. prometheus_tsdb_head_samples_appended_total only counts
+    in-order samples and undercounts when data is sent as historical replay.
+    """
     base = _PROM_URL or "http://localhost:9090"
-    print("Waiting for Prometheus compaction...", flush=True)
-    prev, stable = -1.0, 0
+
+    print("Waiting for Prometheus head chunks to flush (reading from /metrics) ...", flush=True)
+    blocks_bytes = 0.0
+    head_chunks_bytes = 0.0
+    head_series = 0
+    prev_total, stable = -1.0, 0
     deadline = time.time() + 300
     while time.time() < deadline:
-        blocks = _prom_metric(base, "prometheus_tsdb_storage_blocks_bytes")
-        head   = _prom_metric(base, "prometheus_tsdb_head_chunks_storage_size_bytes")
-        total  = blocks + head
-        print(f"  blocks={blocks/1024**2:.1f}MB  head={head/1024**2:.1f}MB  total={total/1024**2:.1f}MB", flush=True)
-        if blocks > 0 and blocks == prev:
+        try:
+            with urllib.request.urlopen(f"{base}/metrics") as r:
+                for line in r.read().decode().splitlines():
+                    if line.startswith("#"):
+                        continue
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    name, val = parts[0], parts[-1]
+                    if name == "prometheus_tsdb_storage_blocks_bytes":
+                        blocks_bytes = float(val)
+                    elif name == "prometheus_tsdb_head_chunks_storage_size_bytes":
+                        head_chunks_bytes = float(val)
+                    elif name == "prometheus_tsdb_head_series":
+                        head_series = int(float(val))
+        except Exception as e:
+            print(f"  /metrics fetch failed: {e}", flush=True)
+
+        total = blocks_bytes + head_chunks_bytes
+        print(f"  blocks={blocks_bytes/1024**2:.1f}MB  head_chunks={head_chunks_bytes/1024**2:.1f}MB  total={total/1024**2:.1f}MB", flush=True)
+        if total > 0 and total == prev_total:
             stable += 1
             if stable >= 3:
                 break
         else:
             stable = 0
-        prev = blocks
+        prev_total = total
         time.sleep(5)
 
-    blocks  = _prom_metric(base, "prometheus_tsdb_storage_blocks_bytes")
-    head    = _prom_metric(base, "prometheus_tsdb_head_chunks_storage_size_bytes")
-    series  = int(_prom_metric(base, "prometheus_tsdb_head_series"))
-    total   = int(blocks + head)
-    bps     = f"  ({total/datapoints:.2f} bytes/dp)" if (total and datapoints) else ""
-    print(f"\nPrometheus: {series:,} series  {total/1024**2:.1f} MB{bps}")
-    _save_result("prometheus", os.environ.get("PROMETHEUS_VERSION","?"), datapoints, total)
+    size_bytes = int(blocks_bytes + head_chunks_bytes)
+    bps = f"  ({size_bytes/datapoints:.2f} bytes/sample)" if (size_bytes and datapoints) else ""
+    print(f"\nPrometheus: {head_series:,} series  {size_bytes/1024**2:.1f} MB{bps}")
+    _save_result("prometheus", os.environ.get("PROMETHEUS_VERSION","?"), datapoints, size_bytes)
 
 
 def report_mimir(datapoints: int):

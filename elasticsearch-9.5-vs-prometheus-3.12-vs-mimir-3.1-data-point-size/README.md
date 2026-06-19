@@ -4,13 +4,11 @@ Measures bytes per data point for three time-series engines after ingesting iden
 
 ## Results
 
-100 hosts × 270 minutes × 1s interval = 225,180,000 data points per engine. Measured after force-merge (ES) / compaction (Prometheus, Mimir).
-
-| Engine        | Version        | Data Points | Size      | Bytes/DP |
-|---------------|----------------|-------------|-----------|----------|
-| Elasticsearch | 9.5.0-SNAPSHOT | 225,180,000 | 647.5 MB  | **3.02** |
-| Mimir         | 3.1.0          | 225,180,000 | 832.5 MB  | 3.88     |
-| Prometheus    | 3.12.0         | 225,180,000 | 1,011 MB  | 4.71     |
+| Engine        | Version        | Data Points | Size     | Bytes/DP |
+| ------------- | -------------- | ----------- | -------- | -------- |
+| Elasticsearch | 9.5.0-SNAPSHOT | 225,180,000 | 647.5 MB | 3.02     |
+| Prometheus    | 3.12.0         | 225,180,000 | 750.5 MB | 3.49     |
+| Mimir         | 3.1.0          | 225,180,000 | 832.5 MB | 3.88     |
 
 Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, synthetic document IDs, doc value skippers (no inverted indices on dimensions), and trimmed sequence numbers — all applied automatically via the built-in OTel index template.
 
@@ -19,7 +17,7 @@ Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, 
 - Docker (with at least 6 GB memory allocated)
 - Python 3.9+
 - For ES 9.5.0-SNAPSHOT (full optimisations): `docker login docker.elastic.co` with an Elastic account
-- For ES without Elastic account: edit `.env` → `ES_VERSION=9.4.3` (STORED _source, slightly higher bytes/DP)
+- For ES without Elastic account: edit `.env` → `ES_VERSION=9.4.3` (STORED \_source, slightly higher bytes/DP)
 
 ## Quick Start
 
@@ -38,25 +36,26 @@ make report
 
 ## How It Works
 
-1. **Data generation**: `metricsgenreceiver` generates synthetic OTel hostmetrics (100 hosts × 270 minutes × 1s interval = 225M data points) and streams directly to each engine via OTLP/HTTP with protobuf + gzip — no intermediate files.
+1. **Data generation**: `metricsgenreceiver` generates synthetic OTel hostmetrics (100 hosts × 270 minutes × ~139 metrics/host × 1s interval ≈ 225M data points) and streams directly to each engine via OTLP/HTTP with protobuf + gzip — no intermediate files.
 
 2. **Elasticsearch setup**: The built-in `metrics-otel@template` index template activates automatically. `metrics-otel@custom` overrides replicas/shards/look_back_time. Trial license enables synthetic `_source`.
 
 3. **Storage measurement**:
    - **Elasticsearch**: `_forcemerge` to 1 segment, then `_cat/indices` for `dataset.size`
-   - **Prometheus/Mimir**: wait for compaction, then measure mounted data directory size
+   - **Prometheus**: `POST /api/v1/admin/tsdb/snapshot` → measure snapshot directory size (blocks only, excludes WAL) ÷ `prometheus_tsdb_head_samples_appended_total`. Matches the [methodology used by the Prometheus team](https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh).
+   - **Mimir**: `POST /ingester/flush` to force block compaction, then measure blocks directory size
 
 ## Configuration
 
 Edit `.env` to adjust:
 
-| Variable | Default | Description |
-|---|---|---|
-| `ES_VERSION` | `9.5.0-SNAPSHOT` | ES image tag |
-| `SCALE` | `100` | Simulated hosts |
-| `INTERVAL` | `1s` | Metric emission interval |
-| `START_NOW_MINUS` | `270m` | Data window (historical replay) |
-| `ES_HEAP` | `4g` | Elasticsearch JVM heap |
+| Variable          | Default          | Description                     |
+| ----------------- | ---------------- | ------------------------------- |
+| `ES_VERSION`      | `9.5.0-SNAPSHOT` | ES image tag                    |
+| `SCALE`           | `100`            | Simulated hosts                 |
+| `INTERVAL`        | `1s`             | Metric emission interval        |
+| `START_NOW_MINUS` | `270m`           | Data window (historical replay) |
+| `ES_HEAP`         | `4g`             | Elasticsearch JVM heap          |
 
 ## Methodology
 
