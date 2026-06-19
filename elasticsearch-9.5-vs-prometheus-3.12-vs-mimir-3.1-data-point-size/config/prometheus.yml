@@ -6,7 +6,7 @@ storage:
   tsdb:
     out_of_order_time_window: 270m
 
-scrape_configs:
-  - job_name: prometheus
-    static_configs:
-      - targets: ['localhost:9090']
+# No scrape_configs — self-scraping would advance the TSDB head to "now",
+# making all historical replay data (start_now_minus=270m) appear out-of-order
+# and get rejected at the boundary. Without self-scraping, the TSDB head starts
+# empty and metricsgenreceiver's data is accepted as in-order.
