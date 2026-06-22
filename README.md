@@ -37,17 +37,17 @@ Compares ANN vector search performance using on-disk quantized indexes:
 
 See the [full benchmark details](es-9.4-vs-qd-1.18-vector-search/README.md).
 
-### [Elasticsearch 9.5 vs Prometheus 3.12 vs Mimir 3.1: Metrics Storage Efficiency](elasticsearch-9.5-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/)
+### [Elasticsearch 9.4 vs Prometheus 3.12 vs Mimir 3.1: Metrics Storage Efficiency](elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/)
 
 Measures bytes per data point after ingesting 225M OTel hostmetrics samples (100 hosts × 270min × 1s) via OTLP. Runs entirely on local Docker — no cloud required.
 
 | Engine        | Version        | Bytes/DP |
 |---------------|----------------|----------|
-| Elasticsearch | 9.5.0-SNAPSHOT | **3.02** |
-| Prometheus    | 3.12.0         | 3.49     |
-| Mimir         | 3.1.0          | 3.88     |
+| Elasticsearch | 9.4.2          | **3.04** |
+| Prometheus    | 3.12.0         | 3.86     |
+| Mimir         | 3.1.0          | 3.86     |
 
-See the [full benchmark details](elasticsearch-9.5-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/README.md).
+See the [full benchmark details](elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/README.md).
 
 ## Methodology
 

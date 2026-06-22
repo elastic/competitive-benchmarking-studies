@@ -149,7 +149,7 @@ def otel_config() -> str:
     else:
         encoding_line = ""
         compression_line = "    compression: gzip\n"
-        batch_size = 100000
+        batch_size = 10000   # ES 9.4.x OTLP endpoint has an 8 MB body limit
         batch_timeout = "10s"
 
     return f"""\
@@ -273,82 +273,90 @@ def report_elasticsearch(datapoints: int):
         f"/{DATA_STREAM}/_forcemerge?max_num_segments=1&wait_for_completion=true")
     print(f"Force-merge complete in {time.time()-t1:.1f}s (HTTP {status})")
 
-    _, stats = _es_request("GET",
-        f"/_cat/indices/{DATA_STREAM}?format=json&h=docs.count,store.size,dataset.size")
-    size_bytes = 0
-    if stats:
-        idx  = stats[0]
-        docs = int(idx.get("docs.count", 0))
-        size = idx.get("dataset.size", "?")
-        for tok in size.split():
+    # Flush so that all merged data is fully written to disk before we measure.
+    # Without this, _cat/indices dataset.size can reflect pre-merge segment sizes.
+    _es_request("POST", f"/{DATA_STREAM}/_flush")
+    time.sleep(5)
+
+    def _parse_size(s: str) -> int:
+        for tok in s.split():
             m = re.match(r"([\d.]+)(kb|mb|gb|b)", tok.lower())
             if m:
                 n, u = float(m.group(1)), m.group(2)
-                size_bytes = int(n * {"b":1,"kb":1024,"mb":1024**2,"gb":1024**3}[u])
-        bps = f"  ({size_bytes/datapoints:.2f} bytes/dp)" if (size_bytes and datapoints) else ""
-        print(f"\nElasticsearch: {docs:,} docs  {size}{bps}")
+                return int(n * {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}[u])
+        return 0
+
+    _, stats = _es_request("GET",
+        f"/_cat/indices/.ds-{DATA_STREAM}*?format=json&h=docs.count,dataset.size")
+    docs, size_bytes = 0, 0
+    if stats:
+        for idx in stats:
+            docs += int(idx.get("docs.count", 0))
+            size_bytes += _parse_size(idx.get("dataset.size", "0b"))
+
+    size_str = (f"{size_bytes/1024**3:.1f}gb" if size_bytes >= 1024**3
+                else f"{size_bytes/1024**2:.1f}mb" if size_bytes >= 1024**2
+                else f"{size_bytes}b")
+    bps = f"  ({size_bytes/datapoints:.2f} bytes/dp)" if (size_bytes and datapoints) else ""
+    print(f"\nElasticsearch: {docs:,} docs  {size_str}{bps}")
     _save_result("elasticsearch", os.environ.get("ES_VERSION","?"), datapoints, size_bytes)
 
 
 def report_prometheus(datapoints: int):
-    """Measure Prometheus storage, WAL excluded.
+    """Measure Prometheus storage via TSDB snapshot.
 
-    Reads prometheus_tsdb_head_chunks_storage_size_bytes +
-    prometheus_tsdb_storage_blocks_bytes directly from the /metrics endpoint.
-    This is equivalent to the snapshot methodology used by the Prometheus team
-    (https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh)
-    — both approaches capture blocks + head chunks and exclude the WAL.
+    POST /api/v1/admin/tsdb/snapshot atomically flushes WAL + head into a clean
+    snapshot block. We then measure the snapshot directory size via
+    `docker exec du -sb` inside the container — this sidesteps Docker Desktop
+    mmap visibility issues that affect bind-mounted files read from the host.
 
-    We read from /metrics rather than the filesystem because on Docker Desktop
-    (macOS), mmap'd files written inside the container (chunks_head/) are not
-    reliably visible on the host through bind mounts.
-
-    Denominator is `datapoints` from metricsgenreceiver — the authoritative count
-    of what was sent. prometheus_tsdb_head_samples_appended_total only counts
-    in-order samples and undercounts when data is sent as historical replay.
+    Matches the methodology from https://github.com/gouthamve/prom-elastic-benchmark/blob/main/scripts/measure-prom.sh
     """
     base = _PROM_URL or "http://localhost:9090"
 
-    print("Waiting for Prometheus head chunks to flush (reading from /metrics) ...", flush=True)
-    blocks_bytes = 0.0
-    head_chunks_bytes = 0.0
+    print("Triggering TSDB snapshot (flushes WAL + head into blocks) ...", flush=True)
+    req = urllib.request.Request(f"{base}/api/v1/admin/tsdb/snapshot", method="POST", data=b"")
+    try:
+        with urllib.request.urlopen(req) as r:
+            resp = json.loads(r.read())
+        snap_name = resp["data"]["name"]
+        print(f"  snapshot: {snap_name}")
+    except Exception as e:
+        sys.exit(f"Snapshot failed: {e}")
+
+    # Find the container that is actually serving the Prometheus port — not the
+    # compose service name, which may resolve to a container that lost the port
+    # race when another Prometheus instance was already running.
+    prom_port = urllib.parse.urlparse(base).port or 9090
+    cp = subprocess.run(
+        ["docker", "ps", "--filter", f"publish={prom_port}", "--format", "{{.ID}}"],
+        capture_output=True, text=True,
+    )
+    container_id = cp.stdout.strip().splitlines()[0] if cp.stdout.strip() else ""
+    if not container_id:
+        sys.exit(f"Could not find a running container publishing port {prom_port}")
+
+    du = subprocess.run(
+        ["docker", "exec", container_id, "du", "-sb",
+         f"/prometheus/snapshots/{snap_name}"],
+        capture_output=True, text=True,
+    )
+    if du.returncode != 0:
+        sys.exit(f"docker exec du failed: {du.stderr.strip()}")
+    size_bytes = int(du.stdout.split()[0])
+
     head_series = 0
-    prev_total, stable = -1.0, 0
-    deadline = time.time() + 300
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(f"{base}/metrics") as r:
-                for line in r.read().decode().splitlines():
-                    if line.startswith("#"):
-                        continue
-                    parts = line.split()
-                    if len(parts) < 2:
-                        continue
-                    name, val = parts[0], parts[-1]
-                    if name == "prometheus_tsdb_storage_blocks_bytes":
-                        blocks_bytes = float(val)
-                    elif name == "prometheus_tsdb_head_chunks_storage_size_bytes":
-                        head_chunks_bytes = float(val)
-                    elif name == "prometheus_tsdb_head_series":
-                        head_series = int(float(val))
-        except Exception as e:
-            print(f"  /metrics fetch failed: {e}", flush=True)
+    try:
+        with urllib.request.urlopen(f"{base}/metrics") as r:
+            for line in r.read().decode().splitlines():
+                if line.startswith("prometheus_tsdb_head_series "):
+                    head_series = int(float(line.split()[-1]))
+    except Exception:
+        pass
 
-        total = blocks_bytes + head_chunks_bytes
-        print(f"  blocks={blocks_bytes/1024**2:.1f}MB  head_chunks={head_chunks_bytes/1024**2:.1f}MB  total={total/1024**2:.1f}MB", flush=True)
-        if total > 0 and total == prev_total:
-            stable += 1
-            if stable >= 3:
-                break
-        else:
-            stable = 0
-        prev_total = total
-        time.sleep(5)
-
-    size_bytes = int(blocks_bytes + head_chunks_bytes)
     bps = f"  ({size_bytes/datapoints:.2f} bytes/sample)" if (size_bytes and datapoints) else ""
     print(f"\nPrometheus: {head_series:,} series  {size_bytes/1024**2:.1f} MB{bps}")
-    _save_result("prometheus", os.environ.get("PROMETHEUS_VERSION","?"), datapoints, size_bytes)
+    _save_result("prometheus", os.environ.get("PROMETHEUS_VERSION", "?"), datapoints, size_bytes)
 
 
 def report_mimir(datapoints: int):
@@ -415,8 +423,9 @@ def main():
         elapsed = time.time() - t0
 
         if result.returncode != 0:
-            print(result.stderr, file=sys.stderr)
             sys.exit(f"metricsgenreceiver exited with code {result.returncode}")
+
+    print(result.stderr)
 
     datapoints, rate = _parse_datapoints(result.stderr)
     if datapoints:

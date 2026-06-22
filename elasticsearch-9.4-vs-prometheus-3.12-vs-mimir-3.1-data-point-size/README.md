@@ -1,14 +1,14 @@
-# Elasticsearch 9.5 vs Prometheus 3.12 vs Mimir 3.1 — Data Point Storage Efficiency
+# Elasticsearch 9.4.2 vs Prometheus 3.12 vs Mimir 3.1 — Data Point Storage Efficiency
 
 Measures bytes per data point for three time-series engines after ingesting identical OTel hostmetrics data.
 
 ## Results
 
-| Engine        | Version        | Data Points | Size     | Bytes/DP |
-| ------------- | -------------- | ----------- | -------- | -------- |
-| Elasticsearch | 9.5.0-SNAPSHOT | 225,180,000 | 647.5 MB | 3.02     |
-| Prometheus    | 3.12.0         | 225,180,000 | 750.5 MB | 3.49     |
-| Mimir         | 3.1.0          | 225,180,000 | 832.5 MB | 3.88     |
+| Engine        | Version         | Data Points | Size     | Bytes/DP |
+|---------------|-----------------|-------------|----------|----------|
+| Elasticsearch | 9.4.2           | 225,180,000 | 653.7 MB | 3.04     |
+| Prometheus    | 3.12.0          | 225,180,000 | 828.2 MB | 3.86     |
+| Mimir         | 3.1.0           | 225,180,000 | 829.3 MB | 3.86     |
 
 Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, synthetic document IDs, doc value skippers (no inverted indices on dimensions), and trimmed sequence numbers — all applied automatically via the built-in OTel index template.
 
@@ -16,8 +16,6 @@ Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, 
 
 - Docker (with at least 6 GB memory allocated)
 - Python 3.9+
-- For ES 9.5.0-SNAPSHOT (full optimisations): `docker login docker.elastic.co` with an Elastic account
-- For ES without Elastic account: edit `.env` → `ES_VERSION=9.4.3` (STORED \_source, slightly higher bytes/DP)
 
 ## Quick Start
 
@@ -49,13 +47,13 @@ make report
 
 Edit `.env` to adjust:
 
-| Variable          | Default          | Description                     |
-| ----------------- | ---------------- | ------------------------------- |
-| `ES_VERSION`      | `9.5.0-SNAPSHOT` | ES image tag                    |
-| `SCALE`           | `100`            | Simulated hosts                 |
-| `INTERVAL`        | `1s`             | Metric emission interval        |
-| `START_NOW_MINUS` | `270m`           | Data window (historical replay) |
-| `ES_HEAP`         | `4g`             | Elasticsearch JVM heap          |
+| Variable | Default | Description |
+|---|---|---|
+| `ES_VERSION` | `9.4.2` | ES image tag |
+| `SCALE` | `100` | Simulated hosts |
+| `INTERVAL` | `1s` | Metric emission interval |
+| `START_NOW_MINUS` | `270m` | Data window (historical replay) |
+| `ES_HEAP` | `4g` | Elasticsearch JVM heap |
 
 ## Methodology
 

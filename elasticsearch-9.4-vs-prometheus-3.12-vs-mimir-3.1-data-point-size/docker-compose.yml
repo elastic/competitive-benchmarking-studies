@@ -17,9 +17,11 @@ services:
     image: prom/prometheus:v${PROMETHEUS_VERSION}
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
       - "--web.enable-otlp-receiver"
       - "--storage.tsdb.retention.time=2d"
       - "--web.enable-admin-api"
+      - "--enable-feature=otlp-deltatocumulative"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./data/prometheus:/prometheus
