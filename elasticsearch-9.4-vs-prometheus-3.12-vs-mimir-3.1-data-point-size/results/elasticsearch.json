@@ -1,6 +1,6 @@
 {
   "engine": "elasticsearch",
-  "version": "9.5.0-SNAPSHOT",
+  "version": "9.4.2",
   "datapoints": 225180000,
-  "size_bytes": 678952960
+  "size_bytes": 685454380
 }
