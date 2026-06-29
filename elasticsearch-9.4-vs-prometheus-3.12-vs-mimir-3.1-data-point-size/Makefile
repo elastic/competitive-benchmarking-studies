@@ -89,7 +89,7 @@ report:
 .venv:
 	uv sync
 
-setup: .venv ensure_vegeta
+setup: .venv
 	@echo "✓ Python environment ready (.venv)"
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────

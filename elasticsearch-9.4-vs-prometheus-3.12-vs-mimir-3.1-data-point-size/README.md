@@ -34,9 +34,6 @@ make mimir            # ~15 min
 
 # Display comparison
 make report
-
-# Run query performance benchmarks (requires data to be ingested first)
-make query
 ```
 
 ## How It Works
