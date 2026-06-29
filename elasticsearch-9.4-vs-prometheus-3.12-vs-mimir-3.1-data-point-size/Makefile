@@ -2,7 +2,7 @@
 include .env
 export
 
-.PHONY: help run elasticsearch prometheus mimir report clean
+.PHONY: help run elasticsearch prometheus mimir report setup clean
 
 .DEFAULT_GOAL := help
 
@@ -13,6 +13,9 @@ help:
 	@echo "===================================================================="
 	@echo ""
 	@echo "Usage:  make <target>"
+	@echo ""
+	@echo "Setup:"
+	@echo "  make setup          Create Python virtual environment via uv"
 	@echo ""
 	@echo "Benchmark:"
 	@echo "  make run            Run all three engines sequentially (~45 min)"
@@ -55,7 +58,7 @@ elasticsearch:
 	  && echo "✓ Data stream created"
 	ELASTICSEARCH_URL=http://localhost:9200 \
 	  RESULTS_FILE=results/elasticsearch.json \
-	  python3 generate_data.py
+	  uv run python generate_data.py
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus:
@@ -66,21 +69,28 @@ prometheus:
 	@echo "✓ Prometheus ready"
 	PROMETHEUS_URL=http://localhost:9090 \
 	  RESULTS_FILE=results/prometheus.json \
-	  python3 generate_data.py
+	  uv run python generate_data.py
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
 mimir:
 	@echo "\n━━━ Mimir $(MIMIR_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/mimir && mkdir -p data/mimir
 	docker compose up -d mimir
-	@python3 wait_for.py http://localhost:8080/ready
+	@uv run python wait_for.py http://localhost:8080/ready
 	MIMIR_URL=http://localhost:8080 \
 	  RESULTS_FILE=results/mimir.json \
-	  python3 generate_data.py
+	  uv run python generate_data.py
 
 # ── Results ────────────────────────────────────────────────────────────────────
 report:
-	@python3 report.py
+	@uv run python report.py
+
+# ── Python environment ─────────────────────────────────────────────────────────
+.venv:
+	uv sync
+
+setup: .venv
+	@echo "✓ Python environment ready (.venv)"
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean:
