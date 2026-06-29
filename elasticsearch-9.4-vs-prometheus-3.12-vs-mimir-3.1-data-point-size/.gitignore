@@ -1,3 +1,4 @@
 data/
 .bin/
 results/*.png
+.venv/
