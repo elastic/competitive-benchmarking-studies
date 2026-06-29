@@ -16,10 +16,14 @@ Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, 
 
 - Docker (with at least 6 GB memory allocated)
 - Python 3.9+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package and environment manager
 
 ## Quick Start
 
 ```bash
+# Set up the Python environment
+make setup
+
 # Run all three engines sequentially (~45 min total)
 make run
 
@@ -30,6 +34,9 @@ make mimir            # ~15 min
 
 # Display comparison
 make report
+
+# Run query performance benchmarks (requires data to be ingested first)
+make query
 ```
 
 ## How It Works
