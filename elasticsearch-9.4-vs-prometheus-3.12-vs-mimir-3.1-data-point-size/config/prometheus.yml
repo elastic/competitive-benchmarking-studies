@@ -6,8 +6,8 @@ storage:
   tsdb:
     out_of_order_time_window: 270m
 
-otlp:
-  translation_strategy: NoTranslation
+#otlp:
+#  translation_strategy: NoTranslation
 
 # No scrape_configs — self-scraping would advance the TSDB head to "now",
 # making all historical replay data (start_now_minus=270m) appear out-of-order

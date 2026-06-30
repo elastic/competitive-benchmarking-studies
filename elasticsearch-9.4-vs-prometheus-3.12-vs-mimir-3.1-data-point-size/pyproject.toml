@@ -8,5 +8,18 @@ dependencies = [
     "matplotlib>=3.8",
 ]
 
+[project.scripts]
+load = "load.cli:main"
+wait-for = "load.wait_for:main"
+query = "query.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["load*", "query*", "store*"]
+
+[tool.uv]
+package = true
+
 [dependency-groups]
-dev = []
+dev = [
+    "ruff>=0.15.20",
+]

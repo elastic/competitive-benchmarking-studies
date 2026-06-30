@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Display bytes-per-data-point comparison across all engines that have results."""
-import json, os, sys
+
+import json
+import os
+import sys
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
@@ -39,9 +42,11 @@ for engine in ENGINES:
     v = r.get("version", "?")
     bpd = sb / dp if dp else 0
     size_str = (
-        f"{sb/1024**3:.2f} GB"
+        f"{sb / 1024**3:.2f} GB"
         if sb >= 1024**3
-        else f"{sb/1024**2:.1f} MB" if sb >= 1024**2 else f"{sb/1024:.0f} KB"
+        else f"{sb / 1024**2:.1f} MB"
+        if sb >= 1024**2
+        else f"{sb / 1024:.0f} KB"
     )
     print(f"{engine:<{W}} {v:<16} {dp:>15,} {size_str:>10} {bpd:>9.2f}")
 print()

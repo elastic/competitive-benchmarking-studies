@@ -15,25 +15,32 @@ Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, 
 ## Prerequisites
 
 - Docker (with at least 6 GB memory allocated)
-- Python 3.9+
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package and environment manager
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
+- `curl` and `tar` (pre-installed on macOS and most Linux distros)
 
 ## Quick Start
 
 ```bash
-# Set up the Python environment
+# Install Python deps + download metricsgenreceiver and vegeta into .bin/
 make setup
 
-# Run all three engines sequentially (~45 min total)
+# Run all three engines sequentially — ingests data and runs query benchmarks (~45 min total)
 make run
 
-# Or run individually
+# Or run individually — each target ingests data then immediately runs queries
 make elasticsearch    # ~15 min
 make prometheus       # ~15 min
 make mimir            # ~15 min
 
-# Display comparison
+# Display storage comparison
 make report
+
+# Re-run query benchmarks standalone (requires services to still be running)
+make query            # all three engines
+make query-es         # Elasticsearch only
+make query-prometheus # Prometheus only
+make query-mimir      # Mimir only
 ```
 
 ## How It Works

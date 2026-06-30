@@ -1,0 +1,62 @@
+receivers:
+  metricsgen:
+    seed: {{ seed }}
+    start_now_minus: {{ start_now_minus }}
+    interval: {{ interval }}
+    real_time: false
+    exit_after_end: true
+    exit_after_end_timeout: 15s
+    scenarios:
+      - path: builtin/hostmetrics
+        scale: {{ scale }}
+
+processors:
+  {% if engine in ("prometheus", "mimir") %}
+  transform:
+    metric_statements:
+      - context: datapoint
+        statements:
+          - merge_maps(datapoint.attributes, resource.attributes, "insert")
+  {% endif %}
+  batch:
+
+exporters:
+  {% if debug %}
+  nop:
+  {% else %}
+  otlphttp/{{ engine }}:
+    endpoint: {{ otlp_endpoint }}
+    {% if compression %}
+    compression: gzip
+    {% endif %}
+    {% if engine == "mimir" %}
+    headers:
+      X-Scope-OrgID: mimirtest
+    {% endif %}
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      block_on_overflow: true
+      queue_size: 25
+      num_consumers: 25
+  {% endif %}
+
+service:
+  telemetry:
+    metrics:
+      level: none   # disable internal scrape endpoint to avoid port conflicts
+  pipelines:
+    metrics:
+      receivers: [metricsgen]
+      processors:
+        {% if engine in ("prometheus", "mimir") %}
+        - transform
+        {% endif %}
+        - batch
+      exporters:
+        {% if debug %}
+        [nop]
+        {% else %}
+        [otlphttp/{{ engine }}]
+        {% endif %}
