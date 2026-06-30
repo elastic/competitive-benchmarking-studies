@@ -106,10 +106,6 @@ def otel_config() -> str:
         transform_stmts = """\
   transform:
     metric_statements:
-      - context: resource
-        statements:
-          - delete_key(attributes, "host.ip")
-          - delete_key(attributes, "host.mac")
       - context: datapoint
         statements:
           - merge_maps(attributes, resource.attributes, "insert")"""
@@ -122,9 +118,7 @@ def otel_config() -> str:
       - context: resource
         statements:
           - set(attributes["data_stream.dataset"], "demo")
-          - set(attributes["data_stream.namespace"], "default")
-          - delete_key(attributes, "host.ip")
-          - delete_key(attributes, "host.mac")"""
+          - set(attributes["data_stream.namespace"], "default")"""
         exporter_name = "otlphttp/elasticsearch"
 
     # Mimir requires X-Scope-OrgID even with multitenancy disabled
@@ -196,6 +190,17 @@ service:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _format_duration(seconds: float) -> str:
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    if h:
+        return f"{h}h{m:02d}m{s:02d}s"
+    if m:
+        return f"{m}m{s:02d}s"
+    return f"{s}s"
+
+
 def _parse_datapoints(stderr: str) -> tuple[int, float]:
     datapoints, rate = 0, 0.0
     for line in stderr.splitlines():
@@ -253,12 +258,15 @@ def _dir_size_excl(path: str, excl: set) -> int:
     return total
 
 
-def _save_result(engine: str, version: str, datapoints: int, size_bytes: int):
+def _save_result(engine: str, version: str, datapoints: int, size_bytes: int,
+                 elapsed_seconds: float = 0.0):
     if not RESULTS_FILE:
         return
     os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
+    eps = round(datapoints / elapsed_seconds) if elapsed_seconds > 0 else 0
     record = {"engine": engine, "version": version,
-              "datapoints": datapoints, "size_bytes": size_bytes}
+              "datapoints": datapoints, "size_bytes": size_bytes,
+              "elapsed_seconds": round(elapsed_seconds, 1), "eps": eps}
     with open(RESULTS_FILE, "w") as f:
         json.dump(record, f, indent=2)
     print(f"Result saved to {RESULTS_FILE}")
@@ -266,7 +274,7 @@ def _save_result(engine: str, version: str, datapoints: int, size_bytes: int):
 
 # ── Post-ingest reporting ──────────────────────────────────────────────────────
 
-def report_elasticsearch(datapoints: int):
+def report_elasticsearch(datapoints: int, elapsed: float = 0.0):
     print(f"Force-merging {DATA_STREAM} to 1 segment per shard ...")
     t1 = time.time()
     status, _ = _es_request("POST",
@@ -299,10 +307,10 @@ def report_elasticsearch(datapoints: int):
                 else f"{size_bytes}b")
     bps = f"  ({size_bytes/datapoints:.2f} bytes/dp)" if (size_bytes and datapoints) else ""
     print(f"\nElasticsearch: {docs:,} docs  {size_str}{bps}")
-    _save_result("elasticsearch", os.environ.get("ES_VERSION","?"), datapoints, size_bytes)
+    _save_result("elasticsearch", os.environ.get("ES_VERSION","?"), datapoints, size_bytes, elapsed)
 
 
-def report_prometheus(datapoints: int):
+def report_prometheus(datapoints: int, elapsed: float = 0.0):
     """Measure Prometheus storage via TSDB snapshot.
 
     POST /api/v1/admin/tsdb/snapshot atomically flushes WAL + head into a clean
@@ -356,10 +364,10 @@ def report_prometheus(datapoints: int):
 
     bps = f"  ({size_bytes/datapoints:.2f} bytes/sample)" if (size_bytes and datapoints) else ""
     print(f"\nPrometheus: {head_series:,} series  {size_bytes/1024**2:.1f} MB{bps}")
-    _save_result("prometheus", os.environ.get("PROMETHEUS_VERSION", "?"), datapoints, size_bytes)
+    _save_result("prometheus", os.environ.get("PROMETHEUS_VERSION", "?"), datapoints, size_bytes, elapsed)
 
 
-def report_mimir(datapoints: int):
+def report_mimir(datapoints: int, elapsed: float = 0.0):
     """Flush Mimir ingester to blocks, then measure blocks directory on the host.
 
     Triggers POST /ingester/flush to force the in-memory TSDB head to write
@@ -400,7 +408,7 @@ def report_mimir(datapoints: int):
     except Exception:
         pass
     print(f"\nMimir: {series:,} series  {size_bytes/1024**2:.1f} MB{bps}")
-    _save_result("mimir", os.environ.get("MIMIR_VERSION","?"), datapoints, size_bytes)
+    _save_result("mimir", os.environ.get("MIMIR_VERSION","?"), datapoints, size_bytes, elapsed)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -428,17 +436,18 @@ def main():
     print(result.stderr)
 
     datapoints, rate = _parse_datapoints(result.stderr)
+
     if datapoints:
-        print(f"Ingested: {datapoints:,} data points  ({rate:,.0f} dp/s)  in {elapsed:.1f}s")
+        print(f"Ingested: {datapoints:,} data points  ({rate:,.0f} dp/s)  in {_format_duration(elapsed)}")
     else:
-        print(f"metricsgenreceiver completed in {elapsed:.1f}s")
+        print(f"metricsgenreceiver completed in {_format_duration(elapsed)}")
 
     if ENGINE == "elasticsearch":
-        report_elasticsearch(datapoints)
+        report_elasticsearch(datapoints, elapsed)
     elif ENGINE == "prometheus":
-        report_prometheus(datapoints)
+        report_prometheus(datapoints, elapsed)
     elif ENGINE == "mimir":
-        report_mimir(datapoints)
+        report_mimir(datapoints, elapsed)
 
     print("\nDone.")
 

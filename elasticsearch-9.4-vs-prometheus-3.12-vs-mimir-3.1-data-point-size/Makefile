@@ -2,6 +2,9 @@
 include .env
 export
 
+export UID := $(shell id -u)
+export GID := $(shell id -g)
+
 .PHONY: help run elasticsearch prometheus mimir report setup clean
 
 .DEFAULT_GOAL := help
@@ -64,7 +67,6 @@ elasticsearch:
 prometheus:
 	@echo "\n━━━ Prometheus $(PROMETHEUS_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/prometheus && mkdir -p data/prometheus
-	@chmod a+w data/prometheus
 	docker compose up -d --wait prometheus
 	@echo "✓ Prometheus ready"
 	PROMETHEUS_URL=http://localhost:9090 \
