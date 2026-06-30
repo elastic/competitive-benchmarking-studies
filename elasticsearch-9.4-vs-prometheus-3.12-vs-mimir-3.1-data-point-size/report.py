@@ -5,6 +5,17 @@ import json
 import os
 import sys
 
+
+def _format_duration(seconds: float) -> str:
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    if h:
+        return f"{h}h{m:02d}m{s:02d}s"
+    if m:
+        return f"{m}m{s:02d}s"
+    return f"{s}s"
+
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 ENGINES = ["elasticsearch", "prometheus", "mimir"]
@@ -30,9 +41,9 @@ if not results:
 W = 24
 print()
 print(
-    f"{'Engine':<{W}} {'Version':<16} {'Data Points':>15} {'Size':>10} {'Bytes/DP':>10}"
+    f"{'Engine':<{W}} {'Version':<16} {'Data Points':>15} {'Size':>10} {'Bytes/DP':>10} {'Elapsed':>10} {'EPS':>10}"
 )
-print("─" * (W + 16 + 15 + 10 + 10 + 6))
+print("─" * (W + 16 + 15 + 10 + 10 + 10 + 10 + 8))
 for engine in ENGINES:
     if engine not in results:
         continue
@@ -48,7 +59,11 @@ for engine in ENGINES:
         if sb >= 1024**2
         else f"{sb / 1024:.0f} KB"
     )
-    print(f"{engine:<{W}} {v:<16} {dp:>15,} {size_str:>10} {bpd:>9.2f}")
+    elapsed = r.get("elapsed_seconds", 0)
+    elapsed_str = _format_duration(elapsed) if elapsed else "—"
+    eps = r.get("eps", 0)
+    eps_str = f"{eps:,}" if eps else "—"
+    print(f"{engine:<{W}} {v:<16} {dp:>15,} {size_str:>10} {bpd:>9.2f} {elapsed_str:>10} {eps_str:>10}")
 print()
 
 # ── Bar chart ─────────────────────────────────────────────────────────────────

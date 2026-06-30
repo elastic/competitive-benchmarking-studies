@@ -4,6 +4,8 @@ export
 
 BIN_DIR = .bin
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
+export UID := $(shell id -u)
+export GID := $(shell id -g)
 
 .PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus lint
 
@@ -83,7 +85,6 @@ prometheus: export QUERY_ENGINE   = prometheus
 prometheus:
 	@echo "\n━━━ Prometheus $(PROMETHEUS_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/prometheus && mkdir -p data/prometheus
-	@chmod a+w data/prometheus
 	docker compose up -d --wait prometheus
 	@echo "✓ Prometheus ready"
 	@echo "Ingesting data..."
