@@ -1,0 +1,63 @@
+#!/bin/bash -eux
+set -o pipefail
+
+export HOME="$${HOME:-/root}"
+
+# Swap for memory headroom during ingest (ES heap + three containers)
+if [ ! -f /swapfile ]; then
+    fallocate -l 8G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y curl git make python3 nvme-cli mdadm
+
+# ── NVMe local storage ────────────────────────────────────────────────────────
+mapfile -t nvme_devs < <(lsblk -dn -o NAME,MODEL | awk '$0 ~ /Instance Storage/ {print "/dev/"$1}')
+
+if [ "$${#nvme_devs[@]}" -eq 0 ]; then
+    echo "error: no instance-store NVMe devices found" >&2
+    exit 1
+elif [ "$${#nvme_devs[@]}" -eq 1 ]; then
+    nvme_target="$${nvme_devs[0]}"
+else
+    mdadm --create --verbose /dev/md0 --level=0 \
+          --raid-devices="$${#nvme_devs[@]}" "$${nvme_devs[@]}"
+    nvme_target=/dev/md0
+fi
+
+mkfs.ext4 -F "$nvme_target"
+mkdir -p ${nvme_mount}
+mount "$nvme_target" ${nvme_mount}
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+mkdir -p ${nvme_mount}/docker
+curl -fsSL https://get.docker.com | sh
+usermod -aG docker ubuntu
+cat > /etc/docker/daemon.json <<EOF
+{"data-root": "${nvme_mount}/docker"}
+EOF
+systemctl restart docker
+apt-get install -y docker-compose-plugin
+
+# uv — Python package manager used by the Makefile
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source "$HOME/.local/bin/env"
+
+# ── Benchmark ─────────────────────────────────────────────────────────────────
+git clone --depth 1 \
+    "https://x-access-token:${github_token}@github.com/${repo}.git" \
+    --branch '${branch}' \
+    ${nvme_mount}/repo
+
+cd ${nvme_mount}/repo/elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size
+
+make setup
+make run 2>&1 | tee ${nvme_mount}/benchmark.log
+
+if [ "${shutdown}" = "true" ]; then
+    shutdown now
+fi
