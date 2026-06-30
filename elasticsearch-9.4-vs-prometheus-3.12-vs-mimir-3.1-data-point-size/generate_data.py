@@ -106,10 +106,6 @@ def otel_config() -> str:
         transform_stmts = """\
   transform:
     metric_statements:
-      - context: resource
-        statements:
-          - delete_key(attributes, "host.ip")
-          - delete_key(attributes, "host.mac")
       - context: datapoint
         statements:
           - merge_maps(attributes, resource.attributes, "insert")"""
@@ -122,9 +118,7 @@ def otel_config() -> str:
       - context: resource
         statements:
           - set(attributes["data_stream.dataset"], "demo")
-          - set(attributes["data_stream.namespace"], "default")
-          - delete_key(attributes, "host.ip")
-          - delete_key(attributes, "host.mac")"""
+          - set(attributes["data_stream.namespace"], "default")"""
         exporter_name = "otlphttp/elasticsearch"
 
     # Mimir requires X-Scope-OrgID even with multitenancy disabled
