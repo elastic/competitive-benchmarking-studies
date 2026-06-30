@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -94,22 +93,7 @@ class VegetaRunner:
     ) -> None:
         """Run a warmup attack before the measured one; results are discarded."""
         warmup_rate = query.warmup_rate or query.rate or defaults.rate
-
-        if query.warmup_count and query.warmup_count > 0:
-            m = re.match(r"^(\d+)(?:/(\d+)([smh]?))?$", warmup_rate)
-            if m:
-                n = int(m.group(1))
-                period_val = int(m.group(2) or 1)
-                period_unit = m.group(3) or "s"
-                period_s = period_val * {"s": 1, "m": 60, "h": 3600}.get(period_unit, 1)
-                warmup_duration = f"{max(1, (query.warmup_count * period_s) // n)}s"
-            else:
-                warmup_duration = f"{query.warmup_count}s"
-        else:
-            warmup_duration = (
-                query.warmup_duration or defaults.warmup_duration or defaults.duration
-            )
-
+        warmup_duration = query.warmup_duration or defaults.warmup_duration or defaults.duration
         warmup_cfg = VegetaConfig(
             effective_rate=warmup_rate,
             effective_duration=warmup_duration,

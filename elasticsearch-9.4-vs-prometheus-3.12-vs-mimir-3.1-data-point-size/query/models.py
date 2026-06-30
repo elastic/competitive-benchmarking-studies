@@ -20,6 +20,7 @@ def parse_time_arg(value: str, now: int) -> int:
     """Accept a Unix timestamp, 'now', or a duration like '270m' / '4h' / '30s'."""
     if value == "now":
         return now
+
     m = _DURATION_RE.match(value)
     if m:
         amount, unit = int(m.group(1)), m.group(2)
@@ -55,7 +56,6 @@ class QueryDefinition:
     timeout: str | None = None
     # warmup phase — runs a separate attack before the measured one; results discarded
     warmup_duration: str | None = None
-    warmup_count: int | None = None
     warmup_rate: str | None = None
 
 
