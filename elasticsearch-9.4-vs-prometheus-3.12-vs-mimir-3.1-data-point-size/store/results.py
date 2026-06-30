@@ -14,10 +14,12 @@ class ResultStore:
         size_bytes: int,
         start_ts: int,
         end_ts: int,
+        elapsed_seconds: float = 0.0,
         path: str | None = None,
     ) -> None:
         dest = Path(path) if path else self._dir / f"{engine}.json"
         dest.parent.mkdir(parents=True, exist_ok=True)
+        eps = round(datapoints / elapsed_seconds) if elapsed_seconds > 0 else 0
         record = {
             "engine": engine,
             "version": version,
@@ -25,6 +27,8 @@ class ResultStore:
             "size_bytes": size_bytes,
             "start_ts": start_ts,
             "end_ts": end_ts,
+            "elapsed_seconds": round(elapsed_seconds, 1),
+            "eps": eps,
         }
         with open(dest, "w") as f:
             json.dump(record, f, indent=2)

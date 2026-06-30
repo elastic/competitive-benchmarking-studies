@@ -23,8 +23,6 @@ defaults:
   warmup_duration: "30s"
   workers: 1
   timeout: "30s"
-  # duration: "1s"
-  # warmup_duration: "1s"
 
 targets:
   elasticsearch:
