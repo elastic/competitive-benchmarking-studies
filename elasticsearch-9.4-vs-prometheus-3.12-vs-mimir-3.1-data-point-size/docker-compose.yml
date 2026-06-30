@@ -15,6 +15,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v${PROMETHEUS_VERSION}
+    user: "${UID}:${GID}"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -35,6 +36,8 @@ services:
 
   mimir:
     image: grafana/mimir:${MIMIR_VERSION}
+    user: "${UID}:${GID}"
+    working_dir: /tmp/mimir-data
     command:
       - "--config.file=/etc/mimir/mimir.yaml"
     volumes:
