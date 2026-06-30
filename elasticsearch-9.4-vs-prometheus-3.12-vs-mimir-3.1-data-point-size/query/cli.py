@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 import os
+import sys
 import time
 
 from store.results import ResultStore
@@ -22,8 +23,7 @@ QUERIES_FILE = os.path.join(_ROOT, "queries.yml")
 def main() -> None:
     results_file = os.environ.get("RESULTS_FILE")
     if not results_file:
-        print("RESULTS_FILE environment variable is required")
-        return
+        sys.exit("RESULTS_FILE environment variable is required")
 
     store = ResultStore(os.path.dirname(results_file))
     runner = VegetaRunner()
@@ -54,13 +54,11 @@ def main() -> None:
 
     engine_filter = args.engine or os.environ.get("QUERY_ENGINE")
     if not engine_filter:
-        print("No engine specified. Use --engine or QUERY_ENGINE env var.")
-        return
+        sys.exit("No engine specified. Use --engine or QUERY_ENGINE env var.")
 
     ts = store.load_time_range(engine_filter)
     if not ts:
-        print(f"results/{engine_filter}.json not found or missing start_ts/end_ts — run load first")
-        return
+        sys.exit(f"results/{engine_filter}.json not found or missing start_ts/end_ts — run load first")
 
     start_ts, end_ts = ts
     print(
@@ -80,12 +78,10 @@ def main() -> None:
     try:
         defaults, groups = QueryLoader().load(QUERIES_FILE, ctx)
     except FileNotFoundError:
-        print(f"queries.yml not found at {QUERIES_FILE}")
-        return
+        sys.exit(f"queries.yml not found at {QUERIES_FILE}")
 
     if engine_filter and engine_filter not in groups:
-        print(f"Engine {engine_filter!r} not found in queries.yml")
-        return
+        sys.exit(f"Engine {engine_filter!r} not found in queries.yml")
 
     all_results: list[AttackReport] = []
 
@@ -134,4 +130,4 @@ def main() -> None:
         )
         return
 
-    print("No queries ran — check --engine / QUERY_ENGINE filter.")
+    sys.exit("No queries ran — check --engine / QUERY_ENGINE filter.")
