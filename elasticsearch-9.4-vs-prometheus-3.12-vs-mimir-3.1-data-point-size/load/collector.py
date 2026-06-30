@@ -29,7 +29,7 @@ _jinja_env = jinja2.Environment(
 )
 
 
-def otel_config(*, debug: bool = False) -> str:
+def otel_config(debug: bool = False) -> str:
     # Prometheus 3.x does not reliably decompress gzip on OTLP requests; ES and
     # Mimir handle large gzip batches without issue.
     compression = ENGINE == "elasticsearch"
