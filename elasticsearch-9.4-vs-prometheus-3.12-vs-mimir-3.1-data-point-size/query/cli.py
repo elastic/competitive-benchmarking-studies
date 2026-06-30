@@ -103,9 +103,10 @@ def main() -> None:
                 print(" done")
 
             print(
-                f"  running: [{i}] {query.name} "
+                f"  running: [{i}] {query.name} \n"
+                f"  query: {vegeta_target.body.decode("utf-8")} \n",
                 f"(rate={vegeta_cfg.effective_rate}, duration={vegeta_cfg.effective_duration}, "
-                f"workers={vegeta_cfg.effective_workers}) …",
+                f"workers={vegeta_cfg.effective_workers}) \n",
                 end="",
             )
             report = runner.attack(vegeta_target, vegeta_cfg)
@@ -118,8 +119,8 @@ def main() -> None:
             engine_results.append(report)
             all_results.append(report)
             print(
-                f"  p50={report.p50_ms:.1f}ms  p99={report.p99_ms:.1f}ms  "
-                f"rps={report.throughput:.1f}  ok={report.success_pct:.0f}%"
+                f"  results: p50={report.p50_ms:.1f}ms  p99={report.p99_ms:.1f}ms  "
+                f"rps={report.throughput:.1f}  ok={report.success_pct:.0f}% \n"
             )
 
         store.save_query_results(engine, engine_results)
