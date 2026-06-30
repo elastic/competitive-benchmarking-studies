@@ -78,12 +78,20 @@ def _save_result(
     if not RESULTS_FILE:
         return
     ResultStore(os.path.dirname(RESULTS_FILE)).save_ingest_result(
-        engine, version, datapoints, size_bytes, start_ts, end_ts,
-        elapsed_seconds=elapsed_seconds, path=RESULTS_FILE,
+        engine,
+        version,
+        datapoints,
+        size_bytes,
+        start_ts,
+        end_ts,
+        elapsed_seconds=elapsed_seconds,
+        path=RESULTS_FILE,
     )
 
 
-def report_elasticsearch(datapoints: int, start_ts: int, end_ts: int, elapsed: float = 0.0) -> None:
+def report_elasticsearch(
+    datapoints: int, start_ts: int, end_ts: int, elapsed: float = 0.0
+) -> None:
     print(f"Force-merging {DATA_STREAM} to 1 segment per shard ...")
     t1 = time.time()
     status, _ = _es_request(
@@ -138,7 +146,9 @@ def report_elasticsearch(datapoints: int, start_ts: int, end_ts: int, elapsed: f
     )
 
 
-def report_prometheus(datapoints: int, start_ts: int, end_ts: int, elapsed: float = 0.0) -> None:
+def report_prometheus(
+    datapoints: int, start_ts: int, end_ts: int, elapsed: float = 0.0
+) -> None:
     """Measure Prometheus storage via TSDB snapshot.
 
     POST /api/v1/admin/tsdb/snapshot atomically flushes WAL + head into a clean
@@ -217,7 +227,9 @@ def report_prometheus(datapoints: int, start_ts: int, end_ts: int, elapsed: floa
     )
 
 
-def report_mimir(datapoints: int, start_ts: int, end_ts: int, elapsed: float = 0.0) -> None:
+def report_mimir(
+    datapoints: int, start_ts: int, end_ts: int, elapsed: float = 0.0
+) -> None:
     """Flush Mimir ingester to blocks, then measure blocks directory on the host.
 
     Triggers POST /ingester/flush to force the in-memory TSDB head to write

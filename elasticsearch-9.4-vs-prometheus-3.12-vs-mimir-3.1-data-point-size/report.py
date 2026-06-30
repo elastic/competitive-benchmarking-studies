@@ -63,7 +63,9 @@ for engine in ENGINES:
     elapsed_str = _format_duration(elapsed) if elapsed else "—"
     eps = r.get("eps", 0)
     eps_str = f"{eps:,}" if eps else "—"
-    print(f"{engine:<{W}} {v:<16} {dp:>15,} {size_str:>10} {bpd:>9.2f} {elapsed_str:>10} {eps_str:>10}")
+    print(
+        f"{engine:<{W}} {v:<16} {dp:>15,} {size_str:>10} {bpd:>9.2f} {elapsed_str:>10} {eps_str:>10}"
+    )
 print()
 
 # ── Bar chart ─────────────────────────────────────────────────────────────────
