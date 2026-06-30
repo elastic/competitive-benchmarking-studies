@@ -1,0 +1,187 @@
+# Query performance benchmark — Elasticsearch vs Prometheus vs Mimir
+#
+# Base context variables (passed from CLI):
+#   from    Unix timestamp of start time  (--from=270m  or  --from=<unix_ts>)
+#   to      Unix timestamp of end time    (--to=now     or  --to=<unix_ts>)
+#   now     Unix timestamp at script start
+#
+# queries_runtime_params: computed once from the base ctx, then available in all
+# query bodies and params. Supports Jinja2 expressions and the |to_iso filter.
+
+queries_runtime_params:
+  tend_unix: "{{ to }}"
+  tstart_unix: "{{ from }}"
+  tend_minus_240m_unix: "{{ to - 240 * 60 }}"
+  tend: "{{ to | to_iso }}"
+  tstart: "{{ from | to_iso }}"
+  tend_minus_240m: "{{ (to - 240 * 60) | to_iso }}"
+
+# Global vegeta defaults — overridable per query via rate/duration/workers fields
+defaults:
+  rate: "3/1s"
+  duration: "3m"
+  warmup_duration: "30s"
+  workers: 1
+  timeout: "30s"
+
+targets:
+  elasticsearch:
+    target:
+      base_url: "http://localhost:9200"
+      method: POST
+      path: "/_query"
+      headers:
+        Content-Type: "application/json"
+
+    queries:
+      - name: avg_avgot_memory_by_host_1h
+        workers: 8
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h)"}
+
+      - name: avg_avgot_memory_by_host_5m
+        workers: 8
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(5m)"}
+
+      - name: avg_avgot_memory_by_host_30m_window_90m
+        workers: 8
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`, 90m)) BY host.name, TBUCKET(30m)"}
+
+      - name: avg_rate_cpu_by_host_1h
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(1h)"}
+
+      - name: avg_rate_cpu_by_host_5m
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(5m)"}
+
+      - name: avg_rate_cpu_by_host_30m_window_90m
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(RATE(`metrics.system.cpu.time`, 90m)) BY host.name, TBUCKET(30m)"}
+
+      - name: avg_avgot_cpu_load_1m_filtered_by_hosts_5m
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE host.name IN(\"host-0\", \"host-1\", \"host-2\") AND @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"}
+
+      - name: avg_avgot_cpu_load_1m_prefix_by_hosts_5m
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE host.name LIKE \"host-*\" AND @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"}
+
+      - name: sum_rate_sys_cpu_time_large_clause_5m
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS SUM(RATE(system.cpu.time)) BY host.name, host.ip, host.mac, host.arch, attributes.cpu, attributes.state, host.cpu.cache.l2.size, host.cpu.model.id, host.cpu.stepping, host.cpu.vendor.id, TBUCKET(5 minutes)"}
+
+      - name: sum_lot_filesystem_usage_top5
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" AND attributes.state IN (\"used\", \"free\") | STATS sums = SUM(LAST_OVER_TIME(system.filesystem.usage)) by host.name, attributes.mountpoint | STATS top = TOP(sums, 5, \"desc\") by host.name, attributes.mountpoint | LIMIT 5"}
+
+      - name: avgot_memory_by_tbucket_1h
+        workers: 8
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG_OVER_TIME(`metrics.system.memory.utilization`) BY TBUCKET(1h)"}
+
+      - name: rate_cpu_by_tbucket_1h
+        body: |
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS RATE(`metrics.system.cpu.time`) BY TBUCKET(1h)"}
+
+
+  prometheus:
+    target:
+      base_url: "http://localhost:9090"
+      method: POST
+      path: "/api/v1/query_range"
+      headers:
+        Content-Type: "application/x-www-form-urlencoded"
+
+    queries:
+      - name: avg_avgot_memory_by_host_1h
+        workers: 8
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+      - name: avg_avgot_memory_by_host_5m
+        workers: 8
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
+
+      - name: avg_avgot_memory_by_host_30m_window_90m
+        workers: 8
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
+
+      - name: avg_rate_cpu_by_host_1h
+        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+      - name: avg_rate_cpu_by_host_5m
+        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
+
+      - name: avg_rate_cpu_by_host_30m_window_90m
+        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
+
+      - name: avg_avgot_cpu_load_1m_filtered_by_hosts_5m
+        body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-0|host-1|host-2"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+
+      - name: avg_avgot_cpu_load_1m_prefix_by_hosts_5m
+        body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-.*"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+
+      - name: sum_rate_sys_cpu_time_large_clause_5m
+        body: "query=sum by (host_name, host_ip, host_mac, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time_seconds_total[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
+
+      - name: sum_lot_filesystem_usage_top5
+        body: 'query=topk(5, sum by (host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state=~"used|free"}[5m])))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+
+      - name: avgot_memory_by_tbucket_1h
+        workers: 8
+        body: "query=avg_over_time(system_memory_utilization_ratio[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+      - name: rate_cpu_by_tbucket_1h
+        body: "query=rate(system_cpu_time_seconds_total[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+  mimir:
+    target:
+      base_url: "http://localhost:8080"
+      method: POST
+      path: "/prometheus/api/v1/query_range"
+      headers:
+        Content-Type: "application/x-www-form-urlencoded"
+        X-Scope-OrgID: "mimirtest"
+
+    queries:
+      - name: avg_avgot_memory_by_host_1h
+        workers: 8
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+      - name: avg_avgot_memory_by_host_5m
+        workers: 8
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
+
+      - name: avg_avgot_memory_by_host_30m_window_90m
+        workers: 8
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
+
+      - name: avg_rate_cpu_by_host_1h
+        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+      - name: avg_rate_cpu_by_host_5m
+        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
+
+      - name: avg_rate_cpu_by_host_30m_window_90m
+        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
+
+      - name: avg_avgot_cpu_load_1m_filtered_by_hosts_5m
+        body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-0|host-1|host-2"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+
+      - name: avg_avgot_cpu_load_1m_prefix_by_hosts_5m
+        body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-.*"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+
+      - name: sum_rate_sys_cpu_time_large_clause_5m
+        body: "query=sum by (host_name, host_ip, host_mac, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time_seconds_total[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
+
+      - name: sum_lot_filesystem_usage_top5
+        body: 'query=topk(5, sum by (host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state=~"used|free"}[5m])))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+
+      - name: avgot_memory_by_tbucket_1h
+        workers: 8
+        body: "query=avg_over_time(system_memory_utilization_ratio[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+      - name: rate_cpu_by_tbucket_1h
+        body: "query=rate(system_cpu_time_seconds_total[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"

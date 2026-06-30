@@ -1,0 +1,15 @@
+
+Query Performance  (rate={{ defaults.rate }}  duration={{ defaults.duration }})
+{{ sep }}
+{{ header }}
+{{ sep }}
+{% for r in results %}
+{% set engine     = r.engine      | lj(engine_w) %}
+{% set query      = ("[" ~ r.query_index ~ "] " ~ r.query_name) | lj(query_w) %}
+{% set p50        = r.p50_ms      | rj(9,  '.1f') %}
+{% set p95        = r.p95_ms      | rj(9,  '.1f') %}
+{% set p99        = r.p99_ms      | rj(9,  '.1f') %}
+{% set rps        = r.throughput  | rj(7,  '.1f') %}
+{% set ok         = r.success_pct | rj(6,  '.0f') %}
+{{ engine }} {{ query }} {{ p50 }} {{ p95 }} {{ p99 }} {{ rps }} {{ ok }}
+{% endfor %}
