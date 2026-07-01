@@ -29,6 +29,12 @@ variable "nvme_mount" {
   default     = "/data"
 }
 
+variable "run_command" {
+  description = "Command to run after setup (e.g. 'make run', 'make elasticsearch', './custom.sh')"
+  type        = string
+  default     = "make run"
+}
+
 variable "shutdown" {
   description = "Shut down (and terminate) the instance when the benchmark finishes"
   type        = bool

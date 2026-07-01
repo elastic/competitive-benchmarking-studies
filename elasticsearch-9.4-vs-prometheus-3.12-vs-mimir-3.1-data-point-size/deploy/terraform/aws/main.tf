@@ -49,6 +49,7 @@ resource "aws_instance" "benchmark" {
     branch       = var.branch
     github_token = var.github_token
     nvme_mount   = var.nvme_mount
+    run_command  = var.run_command
     shutdown     = var.shutdown ? "true" : "false"
   })
 
