@@ -13,15 +13,6 @@ export PATH := $(abspath $(BIN_DIR)):$(PATH)
 export UID := $(shell id -u)
 export GID := $(shell id -g)
 
-# docker-compose.linux.yml sets Linux-only container tuning (e.g.
-# vm.max_map_count) that Docker Desktop's VM rejects on macOS/Windows.
-UNAME_S := $(shell uname -s)
-COMPOSE_FILES := -f docker-compose.yml
-ifeq ($(UNAME_S),Linux)
-  COMPOSE_FILES += -f docker-compose.linux.yml
-endif
-DOCKER_COMPOSE := docker compose $(COMPOSE_FILES)
-
 .PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus disk-usage disk-usage-es disk-usage-mimir disk-usage-prometheus lint
 
 .DEFAULT_GOAL := help
@@ -72,7 +63,7 @@ elasticsearch: export RESULTS_FILE       = results/elasticsearch.json
 elasticsearch: export QUERY_ENGINE       = elasticsearch
 elasticsearch:
 	@echo "\n━━━ Elasticsearch $(ES_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	$(DOCKER_COMPOSE) up -d --wait elasticsearch
+	docker compose up -d --wait elasticsearch
 	@sleep 2
 	@echo "✓ Elasticsearch ready"
 	@# Trial license — free 30-day, required for synthetic _source in TSDB (idempotent)
@@ -98,7 +89,7 @@ elasticsearch:
 	@uv run query
 	@echo "Calculating disk usage..."
 	@uv run disk-usage
-	$(DOCKER_COMPOSE) down elasticsearch
+	docker compose down elasticsearch
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus: export PROMETHEUS_URL = http://localhost:9090
@@ -107,7 +98,7 @@ prometheus: export QUERY_ENGINE   = prometheus
 prometheus:
 	@echo "\n━━━ Prometheus $(PROMETHEUS_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/prometheus && mkdir -p data/prometheus
-	$(DOCKER_COMPOSE) up -d --wait prometheus
+	docker compose up -d --wait prometheus
 	@echo "✓ Prometheus ready"
 	@echo "Ingesting data..."
 	uv run load
@@ -115,7 +106,7 @@ prometheus:
 	@uv run query
 	@echo "Calculating disk usage..."
 	@uv run disk-usage
-	$(DOCKER_COMPOSE) down prometheus
+	docker compose down prometheus
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
 mimir: export MIMIR_URL     = http://localhost:8080
@@ -124,7 +115,7 @@ mimir: export QUERY_ENGINE  = mimir
 mimir:
 	@echo "\n━━━ Mimir $(MIMIR_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/mimir && mkdir -p data/mimir
-	$(DOCKER_COMPOSE) up -d mimir
+	docker compose up -d mimir
 	@uv run wait-for http://localhost:8080/ready
 	@echo "Ingesting data..."
 	uv run load
@@ -132,7 +123,7 @@ mimir:
 	@uv run query
 	@echo "Calculating disk usage..."
 	@uv run disk-usage
-	$(DOCKER_COMPOSE) down mimir
+	docker compose down mimir
 
 # ── Storage measurement ─────────────────────────────────────────────────────────
 disk-usage-es:
@@ -182,6 +173,6 @@ setup: .venv $(BIN_DIR)/metricsgenreceiver $(BIN_DIR)/vegeta
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean:
-	$(DOCKER_COMPOSE) down -v
+	docker compose down -v
 	@rm -rf data/ results/ $(BIN_DIR)/
 	@echo "✓ Cleaned"
