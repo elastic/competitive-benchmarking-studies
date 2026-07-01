@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import subprocess
 import sys
 import time
@@ -100,27 +99,23 @@ def report_elasticsearch(
     )
     print(f"Force-merge complete in {time.time() - t1:.1f}s (HTTP {status})")
 
-    # Flush so that all merged data is fully written to disk before we measure.
-    # Without this, _cat/indices dataset.size can reflect pre-merge segment sizes.
-    _es_request("POST", f"/{DATA_STREAM}/_flush")
-    time.sleep(5)
-
-    def _parse_size(s: str) -> int:
-        for tok in s.split():
-            m = re.match(r"([\d.]+)(kb|mb|gb|b)", tok.lower())
-            if m:
-                n, u = float(m.group(1)), m.group(2)
-                return int(n * {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}[u])
-        return 0
-
-    _, stats = _es_request(
-        "GET", f"/_cat/indices/.ds-{DATA_STREAM}*?format=json&h=docs.count,dataset.size"
+    status, usage = _es_request(
+        "POST",
+        f"/{DATA_STREAM}/_disk_usage?expand_wildcards=all&run_expensive_tasks=true",
     )
-    docs, size_bytes = 0, 0
-    if stats:
-        for idx in stats:
-            docs += int(idx.get("docs.count", 0))
-            size_bytes += _parse_size(idx.get("dataset.size", "0b"))
+    if status >= 300 or not usage:
+        sys.exit(f"_disk_usage failed (HTTP {status}): {usage}")
+
+    size_bytes = sum(
+        int(idx["store_size_in_bytes"])
+        for key, idx in usage.items()
+        if key != "_shards"
+    )
+
+    _, doc_stats = _es_request(
+        "GET", f"/_cat/indices/.ds-{DATA_STREAM}*?format=json&h=docs.count"
+    )
+    docs = sum(int(idx.get("docs.count", 0)) for idx in doc_stats or [])
 
     size_str = (
         f"{size_bytes / 1024**3:.1f}gb"
