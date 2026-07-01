@@ -4,7 +4,12 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms${ES_HEAP:-4g} -Xmx${ES_HEAP:-4g}"
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms${ES_HEAP:-6g} -Xmx${ES_HEAP:-6g}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     ports:
       - "9200:9200"
     healthcheck:
@@ -15,8 +20,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 12g
-          cpus: '12'
+          memory: ${CONTAINER_MEMORY_LIMIT:-12g}
+          cpus: '${CONTAINER_CPU_LIMIT:-12}'
 
   prometheus:
     image: prom/prometheus:v${PROMETHEUS_VERSION}
@@ -41,8 +46,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 12g
-          cpus: '12'
+          memory: ${CONTAINER_MEMORY_LIMIT:-12g}
+          cpus: '${CONTAINER_CPU_LIMIT:-12}'
 
   mimir:
     image: grafana/mimir:${MIMIR_VERSION}
@@ -58,5 +63,5 @@ services:
     deploy:
       resources:
         limits:
-          memory: 12g
-          cpus: '12'
+          memory: ${CONTAINER_MEMORY_LIMIT:-12g}
+          cpus: '${CONTAINER_CPU_LIMIT:-12}'

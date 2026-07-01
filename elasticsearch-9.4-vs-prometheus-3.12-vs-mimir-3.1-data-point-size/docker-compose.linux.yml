@@ -1,0 +1,10 @@
+# Linux-only overrides, merged in by the Makefile when `uname -s` is Linux.
+#
+# vm.max_map_count is not namespaced on Docker Desktop's Linux VM (macOS/Windows),
+# so setting it per-container there fails with:
+#   sysctl "vm.max_map_count" is not in a separate kernel namespace
+# On native Linux hosts it works fine and Elasticsearch needs it >= 262144.
+services:
+  elasticsearch:
+    sysctls:
+      - vm.max_map_count=262144

@@ -40,9 +40,14 @@ distributor:
 
 
 limits:
-  out_of_order_time_window: 270m
+  # Only needs to cover actual send-order jitter from the OTel collector's
+  # concurrent sending_queue, not the full ingest replay window (unlike
+  # Prometheus's out_of_order_time_window). Observed jitter tops out at
+  # <=10m (cortex_ingester_tsdb_sample_out_of_order_delta_seconds), so this
+  # is set to that floor — smaller than this risks rejecting legitimate
+  # late samples; much larger delays OOO chunk compaction into query time.
+  out_of_order_time_window: 10m
   # Remove ingestion rate cap — default 10k samples/s throttles replay ingest
   ingestion_rate: 10000000
   ingestion_burst_size: 100000000
   max_global_series_per_user: 0
-
