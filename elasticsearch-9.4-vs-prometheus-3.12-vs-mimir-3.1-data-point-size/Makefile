@@ -78,7 +78,7 @@ elasticsearch:
 	@curl -sf -X PUT http://localhost:9200/_data_stream/metrics-demo.otel-default >/dev/null \
 	  && echo "✓ Data stream created"
 	@echo "Ingesting data..."
-	uv run load
+	uv run load --wait-for-merges
 	@echo "Running queries..."
 	@uv run query
 	@echo "Calculating disk usage..."

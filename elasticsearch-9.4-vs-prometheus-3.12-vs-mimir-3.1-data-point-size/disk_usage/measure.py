@@ -9,18 +9,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from engine_config import DATA_DIR, DATA_STREAM, ES_URL, MIMIR_URL, PROM_URL
-
-
-def _es_request(method: str, path: str) -> tuple[int, object]:
-    base_url = ES_URL.rstrip("/")
-    req = urllib.request.Request(base_url + path, method=method)
-
-    try:
-        with urllib.request.urlopen(req) as r:
-            return r.status, json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read() or b"null")
+from engine_config import DATA_DIR, DATA_STREAM, MIMIR_URL, PROM_URL
+from es_utils import es_disk_usage, es_doc_count, es_forcemerge
 
 
 def _dir_size(path: str) -> int:
@@ -39,32 +29,14 @@ def measure_elasticsearch(num_segments=1) -> tuple[int, int]:
 
     Returns (docs, size_bytes).
     """
-    print(f"Force-merging {DATA_STREAM} to {num_segments} segment per shard ...")
-
-    t1 = time.time()
-    status, _ = _es_request(
-        "POST",
-        f"/{DATA_STREAM}/_forcemerge?max_num_segments={num_segments}&wait_for_completion=true",
-    )
-    print(f"Force-merge complete in {time.time() - t1:.1f}s (HTTP {status})")
-
-    status, usage = _es_request(
-        "POST",
-        f"/{DATA_STREAM}/_disk_usage?expand_wildcards=all&run_expensive_tasks=true&flush=true",
-    )
-    if status >= 300 or not usage:
-        sys.exit(f"_disk_usage failed (HTTP {status}): {usage}")
-
+    es_forcemerge(DATA_STREAM, num_segments)
+    docs = es_doc_count(DATA_STREAM)
+    usage = es_disk_usage(DATA_STREAM)
     size_bytes = sum(
         int(idx["all_fields"]["total_in_bytes"])
         for key, idx in usage.items()
         if key != "_shards"
     )
-
-    _, doc_stats = _es_request(
-        "GET", f"/_cat/indices/.ds-{DATA_STREAM}*?format=json&h=docs.count"
-    )
-    docs = sum(int(idx.get("docs.count", 0)) for idx in doc_stats or [])
 
     return docs, size_bytes
 

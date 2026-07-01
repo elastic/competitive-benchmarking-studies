@@ -15,7 +15,7 @@ disk-usage = "disk_usage.cli:main"
 query = "query.cli:main"
 
 [tool.setuptools]
-py-modules = ["engine_config"]
+py-modules = ["engine_config", "es_utils"]
 
 [tool.setuptools.packages.find]
 include = ["load*", "query*", "store*", "disk_usage*"]

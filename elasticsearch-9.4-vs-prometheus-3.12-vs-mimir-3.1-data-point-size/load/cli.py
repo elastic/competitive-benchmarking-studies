@@ -1,6 +1,15 @@
+import argparse
 import os
 
-from engine_config import DATA_DIR, ENGINE, OTLP_ENDPOINT, RESULTS_FILE, VERSION
+from engine_config import (
+    DATA_DIR,
+    DATA_STREAM,
+    ENGINE,
+    OTLP_ENDPOINT,
+    RESULTS_FILE,
+    VERSION,
+)
+from es_utils import es_wait_for_merges
 from store.results import ResultStore
 
 from .collector import run
@@ -18,7 +27,20 @@ def _format_duration(seconds: float) -> str:
     return f"{s}s"
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--wait-for-merges",
+        action="store_true",
+        help="After ingest, wait for background segment merges to complete "
+        "before exiting (only applies to engines that support it; ignored "
+        "otherwise).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = _parse_args()
     os.makedirs(DATA_DIR, exist_ok=True)
 
     print(
@@ -46,4 +68,10 @@ def main() -> None:
             path=RESULTS_FILE,
         )
 
-    print("\nDone.")
+    if args.wait_for_merges:
+        if ENGINE == "elasticsearch":
+            es_wait_for_merges(DATA_STREAM)
+        else:
+            print(f"--wait-for-merges is not supported for engine={ENGINE}, ignoring")
+
+    print("Data ingestion completed.")
