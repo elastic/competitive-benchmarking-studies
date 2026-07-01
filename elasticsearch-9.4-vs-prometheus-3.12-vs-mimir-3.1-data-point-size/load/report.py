@@ -270,7 +270,9 @@ def report_mimir(
                 break
         time.sleep(2)
 
-    size_bytes = _dir_size(DATA_DIR)
+    # Measure only compacted blocks, not tsdb/ WAL or tsdb-sync/, so the figure
+    # is comparable to the Prometheus snapshot (compacted blocks only).
+    size_bytes = _dir_size(blocks_dir)
     bps = (
         f"  ({size_bytes / datapoints:.2f} bytes/dp)"
         if (size_bytes and datapoints)
