@@ -148,24 +148,24 @@ targets:
     queries:
       - name: avg_avgot_memory_by_host_1h
         workers: 8
-        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: avg_avgot_memory_by_host_5m
         workers: 8
-        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
 
       - name: avg_avgot_memory_by_host_30m_window_90m
         workers: 8
-        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
+        body: "query=avg by (host_name) (avg_over_time(system_memory_utilization[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
 
       - name: avg_rate_cpu_by_host_1h
-        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+        body: "query=avg by (host_name) (rate(system_cpu_time[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: avg_rate_cpu_by_host_5m
-        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
+        body: "query=avg by (host_name) (rate(system_cpu_time[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
 
       - name: avg_rate_cpu_by_host_30m_window_90m
-        body: "query=avg by (host_name) (rate(system_cpu_time_seconds_total[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
+        body: "query=avg by (host_name) (rate(system_cpu_time[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
 
       - name: avg_avgot_cpu_load_1m_filtered_by_hosts_5m
         body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-0|host-1|host-2"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
@@ -174,14 +174,14 @@ targets:
         body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-.*"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
 
       - name: sum_rate_sys_cpu_time_large_clause_5m
-        body: "query=sum by (host_name, host_ip, host_mac, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time_seconds_total[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
+        body: "query=sum by (host_name, host_ip, host_mac, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
 
       - name: sum_lot_filesystem_usage_top5
-        body: 'query=topk(5, sum by (host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state=~"used|free"}[5m])))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
+        body: 'query=topk(5, sum by (host_name, mountpoint) (last_over_time(system_filesystem_usage{state=~"used|free"}[5m])))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
 
       - name: avgot_memory_by_tbucket_1h
         workers: 8
-        body: "query=avg_over_time(system_memory_utilization_ratio[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+        body: "query=avg_over_time(system_memory_utilization[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: rate_cpu_by_tbucket_1h
-        body: "query=rate(system_cpu_time_seconds_total[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+        body: "query=rate(system_cpu_time[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
