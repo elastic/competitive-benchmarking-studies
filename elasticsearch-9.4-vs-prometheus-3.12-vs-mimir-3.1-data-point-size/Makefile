@@ -77,6 +77,7 @@ elasticsearch:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	docker compose down elasticsearch
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus: export PROMETHEUS_URL = http://localhost:9090
@@ -91,6 +92,7 @@ prometheus:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	docker compose down prometheus
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
 mimir: export MIMIR_URL     = http://localhost:8080
@@ -105,6 +107,7 @@ mimir:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	docker compose down mimir
 
 # ── Query performance ──────────────────────────────────────────────────────────
 query-es:
