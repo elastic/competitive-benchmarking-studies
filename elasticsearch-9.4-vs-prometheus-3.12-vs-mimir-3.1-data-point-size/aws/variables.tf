@@ -1,7 +1,8 @@
 variable "github_token" {
-  description = "GitHub token used to clone the repo"
+  description = "GitHub token used to clone the repo (optional — omit for public repos)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "repo" {
