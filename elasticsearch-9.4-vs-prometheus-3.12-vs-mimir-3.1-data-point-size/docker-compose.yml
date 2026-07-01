@@ -12,6 +12,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 12g
+          cpus: '12'
 
   prometheus:
     image: prom/prometheus:v${PROMETHEUS_VERSION}
@@ -33,6 +38,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 12g
+          cpus: '12'
 
   mimir:
     image: grafana/mimir:${MIMIR_VERSION}
@@ -45,3 +55,8 @@ services:
       - ./data/mimir:/tmp/mimir-data
     ports:
       - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 12g
+          cpus: '12'

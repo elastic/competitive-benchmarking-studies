@@ -83,6 +83,7 @@ elasticsearch:
 	@uv run query
 	@echo "Calculating disk usage..."
 	@uv run disk-usage
+	docker compose down elasticsearch
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus: export PROMETHEUS_URL = http://localhost:9090
@@ -99,6 +100,7 @@ prometheus:
 	@uv run query
 	@echo "Calculating disk usage..."
 	@uv run disk-usage
+	docker compose down prometheus
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
 mimir: export MIMIR_URL     = http://localhost:8080
@@ -115,6 +117,7 @@ mimir:
 	@uv run query
 	@echo "Calculating disk usage..."
 	@uv run disk-usage
+	docker compose down mimir
 
 # ── Storage measurement ─────────────────────────────────────────────────────────
 disk-usage-es:
