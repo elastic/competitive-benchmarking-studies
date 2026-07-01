@@ -1,8 +1,10 @@
 import os
 
+from engine_config import DATA_DIR, ENGINE, OTLP_ENDPOINT, RESULTS_FILE, VERSION
+from store.results import ResultStore
+
 from .collector import run
-from .config import DATA_DIR, ENGINE, INTERVAL, OTLP_ENDPOINT, SCALE, START_NOW_MINUS
-from .report import report_elasticsearch, report_mimir, report_prometheus
+from .config import INTERVAL, SCALE, START_NOW_MINUS
 
 
 def _format_duration(seconds: float) -> str:
@@ -28,16 +30,20 @@ def main() -> None:
 
     if datapoints:
         print(
-            f"Ingested: {datapoints:,} data points  ({rate:,.0f} dp/s)  in {_format_duration(elapsed)}"
+            f"Ingested: {datapoints:,} data points ({rate:,.0f} dp/s) in {_format_duration(elapsed)}"
         )
     else:
         print(f"metricsgenreceiver completed in {_format_duration(elapsed)}")
 
-    if ENGINE == "elasticsearch":
-        report_elasticsearch(datapoints, start_ts, end_ts, elapsed)
-    elif ENGINE == "prometheus":
-        report_prometheus(datapoints, start_ts, end_ts, elapsed)
-    elif ENGINE == "mimir":
-        report_mimir(datapoints, start_ts, end_ts, elapsed)
+    if RESULTS_FILE:
+        ResultStore(os.path.dirname(RESULTS_FILE)).save_ingest_result(
+            ENGINE,
+            VERSION,
+            datapoints,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            elapsed_seconds=elapsed,
+            path=RESULTS_FILE,
+        )
 
     print("\nDone.")

@@ -7,7 +7,7 @@ export PATH := $(abspath $(BIN_DIR)):$(PATH)
 export UID := $(shell id -u)
 export GID := $(shell id -g)
 
-.PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus lint
+.PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus disk-usage disk-usage-es disk-usage-mimir disk-usage-prometheus lint
 
 .DEFAULT_GOAL := help
 
@@ -36,6 +36,10 @@ help:
 	@echo ""
 	@echo "Results:"
 	@echo "  make report         Print bytes-per-data-point comparison table"
+	@echo "  make disk-usage     Re-measure on-disk storage for all engines without re-ingesting"
+	@echo "  make disk-usage-es  Re-measure Elasticsearch storage only"
+	@echo "  make disk-usage-prometheus  Re-measure Prometheus storage only"
+	@echo "  make disk-usage-mimir  Re-measure Mimir storage only"
 	@echo ""
 	@echo "Dev:"
 	@echo "  make lint           Run ruff linter"
@@ -77,6 +81,8 @@ elasticsearch:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	@echo "Calculating disk usage..."
+	@uv run disk-usage
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus: export PROMETHEUS_URL = http://localhost:9090
@@ -91,6 +97,8 @@ prometheus:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	@echo "Calculating disk usage..."
+	@uv run disk-usage
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
 mimir: export MIMIR_URL     = http://localhost:8080
@@ -105,6 +113,20 @@ mimir:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	@echo "Calculating disk usage..."
+	@uv run disk-usage
+
+# ── Storage measurement ─────────────────────────────────────────────────────────
+disk-usage-es:
+	@ELASTICSEARCH_URL=http://localhost:9200 RESULTS_FILE=results/elasticsearch.json uv run disk-usage
+
+disk-usage-prometheus:
+	@PROMETHEUS_URL=http://localhost:9090 RESULTS_FILE=results/prometheus.json uv run disk-usage
+
+disk-usage-mimir:
+	@MIMIR_URL=http://localhost:8080 RESULTS_FILE=results/mimir.json uv run disk-usage
+
+disk-usage: disk-usage-es disk-usage-prometheus disk-usage-mimir
 
 # ── Query performance ──────────────────────────────────────────────────────────
 query-es:

@@ -93,7 +93,9 @@ class VegetaRunner:
     ) -> None:
         """Run a warmup attack before the measured one; results are discarded."""
         warmup_rate = query.warmup_rate or query.rate or defaults.rate
-        warmup_duration = query.warmup_duration or defaults.warmup_duration or defaults.duration
+        warmup_duration = (
+            query.warmup_duration or defaults.warmup_duration or defaults.duration
+        )
         warmup_cfg = VegetaConfig(
             effective_rate=warmup_rate,
             effective_duration=warmup_duration,

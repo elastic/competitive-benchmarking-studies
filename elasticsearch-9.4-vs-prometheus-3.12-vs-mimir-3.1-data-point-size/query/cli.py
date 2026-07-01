@@ -58,7 +58,9 @@ def main() -> None:
 
     ts = store.load_time_range(engine_filter)
     if not ts:
-        sys.exit(f"results/{engine_filter}.json not found or missing start_ts/end_ts — run load first")
+        sys.exit(
+            f"results/{engine_filter}.json not found or missing start_ts/end_ts — run load first"
+        )
 
     start_ts, end_ts = ts
     print(
