@@ -22,6 +22,7 @@ defaults:
   duration: "3m"
   warmup_duration: "30s"
   workers: 1
+  max_workers: 1
   timeout: "30s"
 
 targets:
@@ -36,16 +37,19 @@ targets:
     queries:
       - name: avg_avgot_memory_by_host_1h
         workers: 8
+        max_workers: 8
         body: |
           {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h)"}
 
       - name: avg_avgot_memory_by_host_5m
         workers: 8
+        max_workers: 8
         body: |
           {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(5m)"}
 
       - name: avg_avgot_memory_by_host_30m_window_90m
         workers: 8
+        max_workers: 8
         body: |
           {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`, 90m)) BY host.name, TBUCKET(30m)"}
 
@@ -79,6 +83,7 @@ targets:
 
       - name: avgot_memory_by_tbucket_1h
         workers: 8
+        max_workers: 8
         body: |
           {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS AVG_OVER_TIME(`metrics.system.memory.utilization`) BY TBUCKET(1h)"}
 
@@ -98,14 +103,17 @@ targets:
     queries:
       - name: avg_avgot_memory_by_host_1h
         workers: 8
+        max_workers: 8
         body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: avg_avgot_memory_by_host_5m
         workers: 8
+        max_workers: 8
         body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
 
       - name: avg_avgot_memory_by_host_30m_window_90m
         workers: 8
+        max_workers: 8
         body: "query=avg by (host_name) (avg_over_time(system_memory_utilization_ratio[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
 
       - name: avg_rate_cpu_by_host_1h
@@ -131,6 +139,7 @@ targets:
 
       - name: avgot_memory_by_tbucket_1h
         workers: 8
+        max_workers: 8
         body: "query=avg_over_time(system_memory_utilization_ratio[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: rate_cpu_by_tbucket_1h
@@ -143,19 +152,21 @@ targets:
       path: "/prometheus/api/v1/query_range"
       headers:
         Content-Type: "application/x-www-form-urlencoded"
-        X-Scope-OrgID: "mimirtest"
 
     queries:
       - name: avg_avgot_memory_by_host_1h
         workers: 8
+        max_workers: 8
         body: "query=avg by (host_name) (avg_over_time(system_memory_utilization[1h]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: avg_avgot_memory_by_host_5m
         workers: 8
+        max_workers: 8
         body: "query=avg by (host_name) (avg_over_time(system_memory_utilization[5m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=5m"
 
       - name: avg_avgot_memory_by_host_30m_window_90m
         workers: 8
+        max_workers: 8
         body: "query=avg by (host_name) (avg_over_time(system_memory_utilization[90m]))&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=30m"
 
       - name: avg_rate_cpu_by_host_1h
@@ -181,6 +192,7 @@ targets:
 
       - name: avgot_memory_by_tbucket_1h
         workers: 8
+        max_workers: 8
         body: "query=avg_over_time(system_memory_utilization[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
 
       - name: rate_cpu_by_tbucket_1h
