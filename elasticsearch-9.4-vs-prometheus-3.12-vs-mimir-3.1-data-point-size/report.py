@@ -16,6 +16,7 @@ def _format_duration(seconds: float) -> str:
         return f"{m}m{s:02d}s"
     return f"{s}s"
 
+
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 ENGINES = ["elasticsearch", "prometheus", "mimir"]

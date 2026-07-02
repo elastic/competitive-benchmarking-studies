@@ -9,16 +9,9 @@ import tempfile
 
 import jinja2
 
-from .config import (
-    DATA_DIR,
-    ENGINE,
-    INTERVAL,
-    OTLP_ENDPOINT,
-    SCALE,
-    SEED,
-    START_NOW_MINUS,
-    parse_duration_seconds,
-)
+from engine_config import DATA_DIR, ENGINE, OTLP_ENDPOINT
+
+from .config import INTERVAL, SCALE, SEED, START_NOW_MINUS, parse_duration_seconds
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _jinja_env = jinja2.Environment(

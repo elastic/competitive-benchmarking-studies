@@ -11,7 +11,6 @@ class ResultStore:
         engine: str,
         version: str,
         datapoints: int,
-        size_bytes: int,
         start_ts: int,
         end_ts: int,
         elapsed_seconds: float = 0.0,
@@ -24,7 +23,6 @@ class ResultStore:
             "engine": engine,
             "version": version,
             "datapoints": datapoints,
-            "size_bytes": size_bytes,
             "start_ts": start_ts,
             "end_ts": end_ts,
             "elapsed_seconds": round(elapsed_seconds, 1),
@@ -42,6 +40,24 @@ class ResultStore:
             return data["start_ts"], data["end_ts"]
         except (FileNotFoundError, KeyError):
             return None
+
+    def save_storage_size(
+        self, engine: str, size_bytes: int, path: str | None = None
+    ) -> None:
+        dest = Path(path) if path else self._dir / f"{engine}.json"
+        try:
+            with open(dest) as f:
+                record = json.load(f)
+        except FileNotFoundError:
+            return None
+
+        record["size_bytes"] = size_bytes
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(dest, "w") as f:
+            json.dump(record, f, indent=2)
+
+        print(f"Storage size saved to {dest}")
 
     def save_query_results(self, engine: str, reports: list) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)

@@ -20,14 +20,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QUERIES_FILE = os.path.join(_ROOT, "queries.yml")
 
 
-def main() -> None:
-    results_file = os.environ.get("RESULTS_FILE")
-    if not results_file:
-        sys.exit("RESULTS_FILE environment variable is required")
-
-    store = ResultStore(os.path.dirname(results_file))
-    runner = VegetaRunner()
-
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Query performance benchmark")
     parser.add_argument(
         "--from",
@@ -50,7 +43,18 @@ def main() -> None:
         dest="engine",
         help="Run only this engine (overrides QUERY_ENGINE env var)",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
+
+    results_file = os.environ.get("RESULTS_FILE")
+    if not results_file:
+        sys.exit("RESULTS_FILE environment variable is required")
+
+    store = ResultStore(os.path.dirname(results_file))
+    runner = VegetaRunner()
 
     engine_filter = args.engine or os.environ.get("QUERY_ENGINE")
     if not engine_filter:
@@ -58,7 +62,9 @@ def main() -> None:
 
     ts = store.load_time_range(engine_filter)
     if not ts:
-        sys.exit(f"results/{engine_filter}.json not found or missing start_ts/end_ts — run load first")
+        sys.exit(
+            f"results/{engine_filter}.json not found or missing start_ts/end_ts — run load first"
+        )
 
     start_ts, end_ts = ts
     print(
@@ -104,8 +110,8 @@ def main() -> None:
 
             print(
                 f"  running: [{i}] {query.name} \n"
-                f"  query: {vegeta_target.body.decode("utf-8")} \n",
-                f"(rate={vegeta_cfg.effective_rate}, duration={vegeta_cfg.effective_duration}, "
+                f"  query: {vegeta_target.body.decode('utf-8')} \n",
+                f" (rate={vegeta_cfg.effective_rate}, duration={vegeta_cfg.effective_duration}, "
                 f"workers={vegeta_cfg.effective_workers}) \n",
                 end="",
             )
