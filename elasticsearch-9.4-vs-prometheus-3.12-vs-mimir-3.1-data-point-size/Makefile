@@ -7,6 +7,9 @@ export PATH := $(abspath $(BIN_DIR)):$(PATH)
 export UID := $(shell id -u)
 export GID := $(shell id -g)
 
+# Tells docker compose where to find the compose file without requiring -f on every call
+export COMPOSE_FILE ?= deploy/docker/docker-compose.yml
+
 .PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus lint
 
 .DEFAULT_GOAL := help
