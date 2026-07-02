@@ -112,7 +112,7 @@ def main() -> None:
                 f"  running: [{i}] {query.name} \n"
                 f"  query: {vegeta_target.body.decode('utf-8')} \n",
                 f" (rate={vegeta_cfg.effective_rate}, duration={vegeta_cfg.effective_duration}, "
-                f"workers={vegeta_cfg.effective_workers}) \n",
+                f"workers={vegeta_cfg.effective_workers}, max_workers={vegeta_cfg.effective_max_workers}) \n",
                 end="",
             )
             report = runner.attack(vegeta_target, vegeta_cfg)

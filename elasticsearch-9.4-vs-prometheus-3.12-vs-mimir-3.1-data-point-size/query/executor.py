@@ -99,9 +99,8 @@ class VegetaRunner:
         warmup_cfg = VegetaConfig(
             effective_rate=warmup_rate,
             effective_duration=warmup_duration,
-            effective_workers=query.workers
-            if query.workers is not None
-            else defaults.workers,
+            effective_workers=query.workers or defaults.workers,
             effective_timeout=query.timeout or defaults.timeout,
+            effective_max_workers=query.max_workers or defaults.max_workers,
         )
         self._run_attack(target, warmup_cfg)

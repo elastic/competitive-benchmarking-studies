@@ -67,10 +67,11 @@ class TargetGroup:
 
 @dataclass
 class Defaults:
-    rate: str = "50/s"
-    duration: str = "30s"
-    workers: int = 10
-    timeout: str = "30s"
+    rate: str
+    duration: str
+    workers: int
+    max_workers: int
+    timeout: str
     warmup_duration: str | None = None
 
 
@@ -179,7 +180,7 @@ class VegetaConfig:
     effective_duration: str
     effective_workers: int
     effective_timeout: str
-    effective_max_workers: int | None = None
+    effective_max_workers: int
 
     @classmethod
     def from_defaults_and_query(
@@ -188,9 +189,7 @@ class VegetaConfig:
         return cls(
             effective_rate=query.rate or defaults.rate,
             effective_duration=query.duration or defaults.duration,
-            effective_workers=query.workers
-            if query.workers is not None
-            else defaults.workers,
+            effective_workers=query.workers or defaults.workers,
             effective_timeout=query.timeout or defaults.timeout,
-            effective_max_workers=query.max_workers,
+            effective_max_workers=query.max_workers or defaults.max_workers,
         )
