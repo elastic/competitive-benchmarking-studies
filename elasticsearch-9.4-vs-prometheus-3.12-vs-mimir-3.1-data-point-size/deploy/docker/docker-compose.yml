@@ -5,6 +5,8 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms${ES_HEAP:-4g} -Xmx${ES_HEAP:-4g}"
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
     healthcheck:
@@ -60,3 +62,6 @@ services:
         limits:
           memory: 12g
           cpus: '12'
+volumes:
+  esdata01:
+    driver: local
