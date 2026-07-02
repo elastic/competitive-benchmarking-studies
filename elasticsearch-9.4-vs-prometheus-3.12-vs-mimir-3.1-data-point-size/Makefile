@@ -10,7 +10,7 @@ export GID := $(shell id -g)
 # Tells docker compose where to find the compose file without requiring -f on every call
 export COMPOSE_FILE ?= deploy/docker/docker-compose.yml
 
-.PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus lint
+.PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus disk-usage disk-usage-es disk-usage-mimir disk-usage-prometheus lint
 
 .DEFAULT_GOAL := help
 
@@ -39,6 +39,10 @@ help:
 	@echo ""
 	@echo "Results:"
 	@echo "  make report         Print bytes-per-data-point comparison table"
+	@echo "  make disk-usage     Re-measure on-disk storage for all engines without re-ingesting"
+	@echo "  make disk-usage-es  Re-measure Elasticsearch storage only"
+	@echo "  make disk-usage-prometheus  Re-measure Prometheus storage only"
+	@echo "  make disk-usage-mimir  Re-measure Mimir storage only"
 	@echo ""
 	@echo "Dev:"
 	@echo "  make lint           Run ruff linter"
@@ -77,9 +81,11 @@ elasticsearch:
 	@curl -sf -X PUT http://localhost:9200/_data_stream/metrics-demo.otel-default >/dev/null \
 	  && echo "✓ Data stream created"
 	@echo "Ingesting data..."
-	uv run load
+	uv run load --wait-for-merges
 	@echo "Running queries..."
 	@uv run query
+	@echo "Calculating disk usage..."
+	@uv run disk-usage
 	docker compose down elasticsearch
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
@@ -95,6 +101,8 @@ prometheus:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	@echo "Calculating disk usage..."
+	@uv run disk-usage
 	docker compose down prometheus
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
@@ -110,7 +118,21 @@ mimir:
 	uv run load
 	@echo "Running queries..."
 	@uv run query
+	@echo "Calculating disk usage..."
+	@uv run disk-usage
 	docker compose down mimir
+
+# ── Storage measurement ─────────────────────────────────────────────────────────
+disk-usage-es:
+	@ELASTICSEARCH_URL=http://localhost:9200 RESULTS_FILE=results/elasticsearch.json uv run disk-usage
+
+disk-usage-prometheus:
+	@PROMETHEUS_URL=http://localhost:9090 RESULTS_FILE=results/prometheus.json uv run disk-usage
+
+disk-usage-mimir:
+	@MIMIR_URL=http://localhost:8080 RESULTS_FILE=results/mimir.json uv run disk-usage
+
+disk-usage: disk-usage-es disk-usage-prometheus disk-usage-mimir
 
 # ── Query performance ──────────────────────────────────────────────────────────
 query-es:

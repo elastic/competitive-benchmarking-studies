@@ -1,8 +1,19 @@
+import argparse
 import os
 
+from engine_config import (
+    DATA_DIR,
+    DATA_STREAM,
+    ENGINE,
+    OTLP_ENDPOINT,
+    RESULTS_FILE,
+    VERSION,
+)
+from es_utils import es_wait_for_merges
+from store.results import ResultStore
+
 from .collector import run
-from .config import DATA_DIR, ENGINE, INTERVAL, OTLP_ENDPOINT, SCALE, START_NOW_MINUS
-from .report import report_elasticsearch, report_mimir, report_prometheus
+from .config import INTERVAL, SCALE, START_NOW_MINUS
 
 
 def _format_duration(seconds: float) -> str:
@@ -16,7 +27,20 @@ def _format_duration(seconds: float) -> str:
     return f"{s}s"
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--wait-for-merges",
+        action="store_true",
+        help="After ingest, wait for background segment merges to complete "
+        "before exiting (only applies to engines that support it; ignored "
+        "otherwise).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = _parse_args()
     os.makedirs(DATA_DIR, exist_ok=True)
 
     print(
@@ -28,16 +52,26 @@ def main() -> None:
 
     if datapoints:
         print(
-            f"Ingested: {datapoints:,} data points  ({rate:,.0f} dp/s)  in {_format_duration(elapsed)}"
+            f"Ingested: {datapoints:,} data points ({rate:,.0f} dp/s) in {_format_duration(elapsed)}"
         )
     else:
         print(f"metricsgenreceiver completed in {_format_duration(elapsed)}")
 
-    if ENGINE == "elasticsearch":
-        report_elasticsearch(datapoints, start_ts, end_ts, elapsed)
-    elif ENGINE == "prometheus":
-        report_prometheus(datapoints, start_ts, end_ts, elapsed)
-    elif ENGINE == "mimir":
-        report_mimir(datapoints, start_ts, end_ts, elapsed)
+    if RESULTS_FILE:
+        ResultStore(os.path.dirname(RESULTS_FILE)).save_ingest_result(
+            ENGINE,
+            VERSION,
+            datapoints,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            elapsed_seconds=elapsed,
+            path=RESULTS_FILE,
+        )
 
-    print("\nDone.")
+    if args.wait_for_merges:
+        if ENGINE == "elasticsearch":
+            es_wait_for_merges(DATA_STREAM)
+        else:
+            print(f"--wait-for-merges is not supported for engine={ENGINE}, ignoring")
+
+    print("Data ingestion completed.")
