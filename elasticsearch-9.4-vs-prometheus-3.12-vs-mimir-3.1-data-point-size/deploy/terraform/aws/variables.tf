@@ -30,9 +30,9 @@ variable "nvme_mount" {
 }
 
 variable "run_command" {
-  description = "Command to run after setup (e.g. 'make run', 'make elasticsearch', './custom.sh')"
+  description = "Command to run on the instance (e.g. 'make setup run', 'make setup elasticsearch', './custom.sh')"
   type        = string
-  default     = "make run"
+  default     = "make setup run"
 }
 
 variable "shutdown" {
