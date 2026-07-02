@@ -138,7 +138,7 @@ def measure_mimir() -> tuple[int, int]:
 
     print("Flushing Mimir ingester to blocks...", flush=True)
     try:
-        req = urllib.request.Request(f"{base}/ingester/flush", method="POST", data=b"")
+        req = urllib.request.Request(f"{base}/ingester/flush?wait=true", method="POST", data=b"")
         with urllib.request.urlopen(req) as r:
             print(f"  flush: HTTP {r.status}")
     except Exception as e:
