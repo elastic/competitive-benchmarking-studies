@@ -5,6 +5,8 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms${ES_HEAP:-4g} -Xmx${ES_HEAP:-4g}"
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
     healthcheck:
@@ -29,8 +31,8 @@ services:
       - "--web.enable-admin-api"
       #- "--enable-feature=otlp-deltatocumulative"
     volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./data/prometheus:/prometheus
+      - ../../config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../data/prometheus:/prometheus
     ports:
       - "9090:9090"
     healthcheck:
@@ -51,8 +53,8 @@ services:
     command:
       - "--config.file=/etc/mimir/mimir.yaml"
     volumes:
-      - ./config/mimir.yaml:/etc/mimir/mimir.yaml:ro
-      - ./data/mimir:/tmp/mimir-data
+      - ../../config/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      - ../../data/mimir:/tmp/mimir-data
     ports:
       - "8080:8080"
     deploy:
@@ -60,3 +62,6 @@ services:
         limits:
           memory: 12g
           cpus: '12'
+volumes:
+  esdata01:
+    driver: local
