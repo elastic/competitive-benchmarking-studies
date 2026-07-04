@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
+
+from tabulate import tabulate
 
 from benchmark.query.models import to_iso
 from benchmark.utils.size import format_size
@@ -26,61 +27,7 @@ ENGINE_COLORS = {
 }
 
 
-@dataclass(frozen=True)
-class QueryResult:
-    name: str
-    p50_ms: float
-    p95_ms: float
-    p99_ms: float
-    mean_ms: float
-    throughput_rps: float
-    success_pct: float
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "QueryResult":
-        return cls(
-            name=d.get("name", "?"),
-            p50_ms=d.get("p50_ms", 0.0),
-            p95_ms=d.get("p95_ms", 0.0),
-            p99_ms=d.get("p99_ms", 0.0),
-            mean_ms=d.get("mean_ms", 0.0),
-            throughput_rps=d.get("throughput_rps", 0.0),
-            success_pct=d.get("success_pct", 0.0),
-        )
-
-
-@dataclass(frozen=True)
-class EngineResult:
-    engine: str
-    version: str = "?"
-    run_at: int | None = None
-    datapoints: int = 0
-    size_bytes: int | None = None
-    elapsed_seconds: float = 0.0
-    eps: int = 0
-    queries: tuple[QueryResult, ...] = field(default_factory=tuple)
-
-    @classmethod
-    def from_json(cls, engine: str, data: dict) -> "EngineResult":
-        return cls(
-            engine=engine,
-            version=data.get("version", "?"),
-            run_at=data.get("run_at"),
-            datapoints=data.get("datapoints", 0),
-            size_bytes=data.get("size_bytes"),
-            elapsed_seconds=data.get("elapsed_seconds", 0.0),
-            eps=data.get("eps", 0),
-            queries=tuple(QueryResult.from_dict(q) for q in data.get("queries", [])),
-        )
-
-    @property
-    def bytes_per_datapoint(self) -> float | None:
-        if not self.datapoints or self.size_bytes is None:
-            return None
-        return self.size_bytes / self.datapoints
-
-
-def load_results(results_dir: Path, engines: Sequence[str]) -> dict[str, EngineResult]:
+def load_results(results_dir: Path, engines: list[str]) -> dict[str, dict]:
     results = {}
     for engine in engines:
         path = results_dir / f"{engine}.json"
@@ -88,67 +35,79 @@ def load_results(results_dir: Path, engines: Sequence[str]) -> dict[str, EngineR
             continue
         try:
             with open(path) as f:
-                data = json.load(f)
+                results[engine] = json.load(f)
         except json.JSONDecodeError as e:
             print(f"Skipping {path}: malformed result file ({e})", file=sys.stderr)
-            continue
-        results[engine] = EngineResult.from_json(engine, data)
     return results
 
 
 def render_storage_table(
-    results: dict[str, EngineResult], engines: Sequence[str]
+    results: dict[str, dict], engines: list[str], tablefmt: str
 ) -> str:
-    w = 24
-    lines = [
-        f"{'Engine':<{w}} {'Version':<16} {'Run At':<20} {'Data Points':>15} {'Size':>10} "
-        f"{'Bytes/DP':>10} {'Elapsed':>10} {'EPS':>10}",
-        "─" * (w + 16 + 20 + 15 + 10 + 10 + 10 + 10 + 9),
-    ]
+    rows = []
     for engine in engines:
         r = results.get(engine)
         if r is None:
             continue
-        run_at_str = to_iso(r.run_at) if r.run_at else "—"
-        size_str = format_size(r.size_bytes) if r.size_bytes is not None else "—"
-        bpd = r.bytes_per_datapoint
-        bpd_str = f"{bpd:.2f}" if bpd is not None else "—"
-        elapsed_str = format_duration(r.elapsed_seconds) if r.elapsed_seconds else "—"
-        eps_str = f"{r.eps:,}" if r.eps else "—"
-        lines.append(
-            f"{engine:<{w}} {r.version:<16} {run_at_str:<20} {r.datapoints:>15,} {size_str:>10} "
-            f"{bpd_str:>10} {elapsed_str:>10} {eps_str:>10}"
+        dp = r.get("datapoints", 0)
+        sb = r.get("size_bytes", 0)
+        bpd = sb / dp if dp else 0
+        elapsed = r.get("elapsed_seconds", 0)
+        eps = r.get("eps", 0)
+        rows.append(
+            [
+                engine,
+                r.get("version", "?"),
+                to_iso(r["run_at"]) if r.get("run_at") else "—",
+                f"{dp:,}",
+                format_size(sb),
+                f"{bpd:.2f}",
+                format_duration(elapsed) if elapsed else "—",
+                f"{eps:,}" if eps else "—",
+            ]
         )
-    return "\n".join(lines)
+    headers = [
+        "Engine",
+        "Version",
+        "Run At",
+        "Data Points",
+        "Size",
+        "Bytes/DP",
+        "Elapsed",
+        "EPS",
+    ]
+    return tabulate(rows, headers=headers, tablefmt=tablefmt)
+
+
+def _latency_cell(q: dict | None) -> str:
+    return f"{q['p50_ms']:.1f}/{q['p95_ms']:.1f}/{q['p99_ms']:.1f}" if q else "—"
 
 
 def render_query_table(
-    results: dict[str, EngineResult], engines: Sequence[str]
+    results: dict[str, dict], engines: list[str], tablefmt: str
 ) -> str | None:
-    engines_with_queries = [e for e in engines if results.get(e) and results[e].queries]
-    if not engines_with_queries:
+    query_results = {
+        engine: {q["name"]: q for q in r.get("queries", [])}
+        for engine, r in results.items()
+        if r.get("queries")
+    }
+    if not query_results:
         return None
 
-    blocks = []
-    for engine in engines_with_queries:
-        queries = results[engine].queries
-        name_w = max(len("Query"), max(len(q.name) for q in queries))
-        header = (
-            f"{'Query':<{name_w}} {'p50 ms':>9} {'p95 ms':>9} {'p99 ms':>9} "
-            f"{'Mean ms':>9} {'RPS':>9} {'OK%':>6}"
-        )
-        lines = [f"{engine} — query results", "─" * len(header), header]
-        for q in queries:
-            lines.append(
-                f"{q.name:<{name_w}} {q.p50_ms:>9.2f} {q.p95_ms:>9.2f} {q.p99_ms:>9.2f} "
-                f"{q.mean_ms:>9.2f} {q.throughput_rps:>9.1f} {q.success_pct:>6.1f}"
-            )
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
+    present_engines = [e for e in engines if e in query_results]
+    query_names = list(next(iter(query_results.values())).keys())
+
+    rows = [
+        [name]
+        + [_latency_cell(query_results[engine].get(name)) for engine in present_engines]
+        for name in query_names
+    ]
+    headers = ["Query"] + [f"{e} (p50/p95/p99 ms)" for e in present_engines]
+    return tabulate(rows, headers=headers, tablefmt=tablefmt)
 
 
-def render_chart(
-    results: dict[str, EngineResult], engines: Sequence[str], out_path: Path
+def render_storage_chart(
+    results: dict[str, dict], engines: list[str], out_path: Path
 ) -> Path | None:
     try:
         import matplotlib
@@ -159,20 +118,16 @@ def render_chart(
         print("matplotlib not installed — skipping chart (pip install matplotlib)")
         return None
 
-    chartable = [
-        e
-        for e in engines
-        if results.get(e) and results[e].bytes_per_datapoint is not None
-    ]
-    if not chartable:
+    present = [e for e in engines if e in results and results[e].get("datapoints")]
+    if not present:
         print(
             "No storage data to chart yet — run the disk-usage step for at least one engine."
         )
         return None
 
-    labels = [f"{e}\n{results[e].version}" for e in chartable]
-    values = [results[e].bytes_per_datapoint for e in chartable]
-    colors = [ENGINE_COLORS.get(e, "#888888") for e in chartable]
+    labels = [f"{e}\n{results[e].get('version', '?')}" for e in present]
+    values = [results[e]["size_bytes"] / results[e]["datapoints"] for e in present]
+    colors = [ENGINE_COLORS.get(e, "#888888") for e in present]
 
     fig, ax = plt.subplots(figsize=(7, 4))
     bars = ax.bar(labels, values, color=colors, width=0.5, zorder=2)
@@ -199,27 +154,116 @@ def render_chart(
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
+def render_query_chart(
+    results: dict[str, dict], engines: list[str], out_path: Path
+) -> Path | None:
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Patch
+    except ImportError:
+        return None
+
+    query_results = {
+        engine: {q["name"]: q for q in r.get("queries", [])}
+        for engine, r in results.items()
+        if r.get("queries")
+    }
+    if not query_results:
+        return None
+
+    present_engines = [e for e in engines if e in query_results]
+    query_names = list(next(iter(query_results.values())).keys())
+    query_labels = [f"Q{i + 1}" for i in range(len(query_names))]
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    x = list(range(len(query_names)))
+    n = len(present_engines)
+    width = 0.8 / n
+
+    for i, engine in enumerate(present_engines):
+        p50s = [
+            query_results[engine].get(name, {}).get("p50_ms", 0) for name in query_names
+        ]
+        offsets = [xi + (i - (n - 1) / 2) * width for xi in x]
+        ax.bar(
+            offsets,
+            p50s,
+            width=width,
+            color=ENGINE_COLORS.get(engine, "#888888"),
+            label=engine,
+            zorder=2,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(query_labels)
+    ax.set_ylabel("p50 latency (ms)", fontsize=11)
+    ax.set_title("Query Latency: p50 by Query and Engine", fontsize=13)
+    ax.grid(axis="y", linestyle="--", alpha=0.4, zorder=1)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    engine_legend = ax.legend(loc="upper left", title="Datastore")
+    ax.add_artist(engine_legend)
+
+    query_handles = [
+        Patch(facecolor="none", edgecolor="none", label=f"{label} = {name}")
+        for label, name in zip(query_labels, query_names)
+    ]
+    ax.legend(
+        handles=query_handles,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1),
+        fontsize=8,
+        title="Queries",
+        frameon=False,
+        handlelength=0,
+        handletextpad=0,
+    )
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     return out_path
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit GitHub-flavored markdown tables instead of plain text",
+    )
+    args = parser.parse_args()
+    tablefmt = "github" if args.markdown else "simple"
+
     results = load_results(RESULTS_DIR, ENGINES)
     if not results:
         print("No results yet. Run: make elasticsearch  make prometheus  make mimir")
         return
 
     print()
-    print(render_storage_table(results, ENGINES))
+    print(render_storage_table(results, ENGINES, tablefmt))
     print()
 
-    query_table = render_query_table(results, ENGINES)
+    query_table = render_query_table(results, ENGINES, tablefmt)
     if query_table:
         print(query_table)
         print()
 
-    out = render_chart(results, ENGINES, RESULTS_DIR / "report.png")
+    out = render_storage_chart(results, ENGINES, RESULTS_DIR / "report.png")
     if out:
         print(f"Chart saved → {out}")
+
+    out2 = render_query_chart(results, ENGINES, RESULTS_DIR / "query_latency.png")
+    if out2:
+        print(f"Chart saved → {out2}")
 
 
 if __name__ == "__main__":
