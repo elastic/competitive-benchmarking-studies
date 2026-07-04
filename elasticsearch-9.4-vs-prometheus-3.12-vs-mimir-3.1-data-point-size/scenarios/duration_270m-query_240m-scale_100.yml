@@ -1,0 +1,10 @@
+name: duration_270m-query_240m-scale_100
+description: 100 hosts, 1s interval, 270m window, 240m query duration
+
+ingest:
+  scale: 100
+  interval: 1s
+  start_now_minus: 270m
+  seed: 123
+
+queryset: default

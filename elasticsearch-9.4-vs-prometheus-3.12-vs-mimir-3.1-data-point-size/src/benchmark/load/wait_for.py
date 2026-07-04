@@ -1,4 +1,11 @@
-"""Usage: python -m load.wait_for <url> [retries]"""
+"""Usage: uv run wait-for <url> [retries]
+
+Polls a URL until it responds successfully or the retry budget is exhausted.
+Needed for engines whose container image has no shell/wget/curl to run a
+Docker Compose `healthcheck:` (e.g. grafana/mimir), so `docker compose up
+--wait` can't be used — see deploy/docker/docker-compose.yml's comment on
+the mimir service.
+"""
 
 import sys
 import time

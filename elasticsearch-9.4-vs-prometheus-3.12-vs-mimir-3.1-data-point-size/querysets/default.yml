@@ -19,8 +19,8 @@ queries_runtime_params:
 # Global vegeta defaults — overridable per query via rate/duration/workers fields
 defaults:
   rate: "3/1s"
-  duration: "3m"
-  warmup_duration: "30s"
+  duration: "1s"
+  warmup_duration: "1s"
   workers: 1
   max_workers: 1
   timeout: "30s"
@@ -90,6 +90,7 @@ targets:
       - name: rate_cpu_by_tbucket_1h
         body: |
           {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS RATE(`metrics.system.cpu.time`) BY TBUCKET(1h)"}
+
 
 
   prometheus:

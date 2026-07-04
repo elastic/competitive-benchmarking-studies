@@ -6,12 +6,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 import jinja2
 
-from engine_config import DATA_DIR, ENGINE, OTLP_ENDPOINT
+from benchmark.engine_config import DATA_DIR, ENGINE, OTLP_ENDPOINT
+from benchmark.scenarios import BenchmarkScenario
 
-from .config import INTERVAL, SCALE, SEED, START_NOW_MINUS, parse_duration_seconds
+from .config import parse_duration_seconds
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _jinja_env = jinja2.Environment(
@@ -22,16 +24,16 @@ _jinja_env = jinja2.Environment(
 )
 
 
-def otel_config(debug: bool = False) -> str:
+def otel_config(scenario: BenchmarkScenario, debug: bool = False) -> str:
     # Prometheus 3.x does not reliably decompress gzip on OTLP requests; ES and
     # Mimir handle large gzip batches without issue.
     compression = ENGINE == "elasticsearch"
     return _jinja_env.get_template("otelcol.yaml.j2").render(
         engine=ENGINE,
-        seed=SEED,
-        scale=SCALE,
-        interval=INTERVAL,
-        start_now_minus=START_NOW_MINUS,
+        seed=scenario.seed,
+        scale=scenario.scale,
+        interval=scenario.interval,
+        start_now_minus=scenario.start_now_minus,
         otlp_endpoint=OTLP_ENDPOINT,
         compression=compression,
         debug=debug,
@@ -39,7 +41,9 @@ def otel_config(debug: bool = False) -> str:
 
 
 def resolve_binary() -> str:
-    root = os.path.dirname(_HERE)
+    # _HERE is <repo_root>/src/benchmark/load — .bin/ is a repo-root artifact
+    # directory, three levels up from here.
+    root = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
     found = shutil.which("metricsgenreceiver")
     if found:
         return found
@@ -62,7 +66,7 @@ def parse_datapoints(output: str) -> tuple[int, float]:
     return datapoints, rate
 
 
-def run() -> tuple[int, float, float, int, int]:
+def run(scenario: BenchmarkScenario) -> tuple[int, float, float, int, int]:
     """Run metricsgenreceiver, return (datapoints, rate, elapsed_seconds, start_ts, end_ts)."""
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
     binary = resolve_binary()
@@ -77,9 +81,7 @@ def run() -> tuple[int, float, float, int, int]:
     with tempfile.TemporaryDirectory() as tmp:
         cfg = os.path.join(tmp, "otelcol.yaml")
         with open(cfg, "w") as f:
-            f.write(otel_config(debug=debug))
-
-        import time
+            f.write(otel_config(scenario, debug=debug))
 
         t0 = time.time()
         with open(log_path, "w") as log_file:
@@ -99,6 +101,6 @@ def run() -> tuple[int, float, float, int, int]:
 
     print(log_contents)
     datapoints, rate = parse_datapoints(log_contents)
-    start_ts = int(t0) - parse_duration_seconds(START_NOW_MINUS)
+    start_ts = int(t0) - parse_duration_seconds(scenario.start_now_minus)
     end_ts = int(t0)
     return datapoints, rate, elapsed, start_ts, end_ts
