@@ -16,7 +16,24 @@ Elapsed/EPS measure the `metricsgenreceiver` ingestion run only (wall-clock time
 
 ### Query Benchmark Results
 
-Each engine ran the same 12 PromQL/ES|QL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data.
+Each engine ran the same 12 PromQL/ES|QL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all three engines.
+
+| Query                                       | Elasticsearch (p50/p95/p99 ms) | Prometheus (p50/p95/p99 ms)   | Mimir (p50/p95/p99 ms)        |
+|----------------------------------------------|---------------------------------|--------------------------------|---------------------------------|
+| avg_avgot_memory_by_host_1h                   | 26.0 / 29.8 / 32.5               | 545.8 / 554.1 / 556.1           | 905.4 / 915.9 / 926.0            |
+| avg_avgot_memory_by_host_5m                   | 42.8 / 46.6 / 48.2               | 508.9 / 513.3 / 514.7           | 837.0 / 847.2 / 853.4            |
+| avg_avgot_memory_by_host_30m_window_90m       | 29.6 / 33.5 / 34.3               | 590.1 / 593.2 / 594.0           | 907.9 / 918.0 / 923.1            |
+| avg_rate_cpu_by_host_1h                       | 143.8 / 147.0 / 148.3            | 3518.7 / 3557.6 / 3560.1        | 4251.7 / 4263.6 / 5493.0         |
+| avg_rate_cpu_by_host_5m                       | 244.9 / 249.1 / 250.8            | 3262.1 / 3273.2 / 3279.7        | 3921.0 / 3929.1 / 3942.0         |
+| avg_rate_cpu_by_host_30m_window_90m           | 171.3 / 174.6 / 176.0            | 3615.1 / 3658.3 / 3658.7        | 4381.7 / 4392.0 / 4393.6         |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m    | 7.0 / 7.4 / 8.1                  | 3.2 / 3.4 / 3.7                 | 5.3 / 5.4 / 5.6                  |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m      | 22.0 / 22.6 / 24.3               | 87.0 / 88.8 / 90.3              | 112.5 / 115.7 / 117.0            |
+| sum_rate_sys_cpu_time_large_clause_5m         | 685.5 / 695.2 / 703.8            | 3379.1 / 3394.6 / 3402.4        | 4252.0 / 4262.8 / 4264.2         |
+| sum_lot_filesystem_usage_top5                 | 25.7 / 27.9 / 29.6               | 440.8 / 444.8 / 445.9           | 547.0 / 551.6 / 552.6            |
+| avgot_memory_by_tbucket_1h                    | 76.1 / 78.0 / 78.9               | 549.6 / 558.3 / 560.1           | 685.0 / 690.4 / 694.0            |
+| rate_cpu_by_tbucket_1h                        | 271.6 / 278.2 / 285.7            | 3520.7 / 3576.7 / 3579.7        | 4344.1 / 4355.0 / 4355.8         |
+
+Per-engine breakdown with RPS and success rate:
 
 <details>
 <summary>Elasticsearch</summary>
