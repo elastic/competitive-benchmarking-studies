@@ -2,5 +2,119 @@
   "engine": "elasticsearch",
   "version": "9.4.2",
   "datapoints": 225180000,
-  "size_bytes": 685454380
+  "start_ts": 1783071338,
+  "end_ts": 1783087538,
+  "elapsed_seconds": 857.9,
+  "eps": 262480,
+  "queries": [
+    {
+      "name": "avg_avgot_memory_by_host_1h",
+      "p50_ms": 26.044,
+      "p95_ms": 29.78,
+      "p99_ms": 32.467,
+      "mean_ms": 26.549,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_memory_by_host_5m",
+      "p50_ms": 42.811,
+      "p95_ms": 46.631,
+      "p99_ms": 48.196,
+      "mean_ms": 43.254,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_memory_by_host_30m_window_90m",
+      "p50_ms": 29.592,
+      "p95_ms": 33.515,
+      "p99_ms": 34.3,
+      "mean_ms": 29.974,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_rate_cpu_by_host_1h",
+      "p50_ms": 143.824,
+      "p95_ms": 146.951,
+      "p99_ms": 148.307,
+      "mean_ms": 143.99,
+      "throughput_rps": 3.003,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_rate_cpu_by_host_5m",
+      "p50_ms": 244.927,
+      "p95_ms": 249.1,
+      "p99_ms": 250.818,
+      "mean_ms": 244.881,
+      "throughput_rps": 3.001,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_rate_cpu_by_host_30m_window_90m",
+      "p50_ms": 171.295,
+      "p95_ms": 174.59,
+      "p99_ms": 175.963,
+      "mean_ms": 171.51,
+      "throughput_rps": 3.003,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_cpu_load_1m_filtered_by_hosts_5m",
+      "p50_ms": 6.965,
+      "p95_ms": 7.39,
+      "p99_ms": 8.089,
+      "mean_ms": 7.011,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_cpu_load_1m_prefix_by_hosts_5m",
+      "p50_ms": 22.02,
+      "p95_ms": 22.63,
+      "p99_ms": 24.253,
+      "mean_ms": 22.093,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "sum_rate_sys_cpu_time_large_clause_5m",
+      "p50_ms": 685.494,
+      "p95_ms": 695.197,
+      "p99_ms": 703.768,
+      "mean_ms": 686.141,
+      "throughput_rps": 1.457,
+      "success_pct": 100
+    },
+    {
+      "name": "sum_lot_filesystem_usage_top5",
+      "p50_ms": 25.729,
+      "p95_ms": 27.868,
+      "p99_ms": 29.557,
+      "mean_ms": 26.026,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "avgot_memory_by_tbucket_1h",
+      "p50_ms": 76.146,
+      "p95_ms": 78.042,
+      "p99_ms": 78.883,
+      "mean_ms": 76.302,
+      "throughput_rps": 3.004,
+      "success_pct": 100
+    },
+    {
+      "name": "rate_cpu_by_tbucket_1h",
+      "p50_ms": 271.589,
+      "p95_ms": 278.157,
+      "p99_ms": 285.654,
+      "mean_ms": 271.856,
+      "throughput_rps": 3.001,
+      "success_pct": 100
+    }
+  ],
+  "size_bytes": 840476971
 }
