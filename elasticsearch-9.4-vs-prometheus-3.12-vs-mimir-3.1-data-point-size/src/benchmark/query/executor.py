@@ -8,7 +8,11 @@ import tempfile
 
 from .models import AttackReport, Defaults, QueryDefinition, VegetaConfig, VegetaTarget
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# This file lives at <repo_root>/src/benchmark/query/executor.py — .bin/ is a
+# repo-root artifact directory, four levels up from here.
+_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 
 class VegetaRunner:
@@ -48,9 +52,9 @@ class VegetaRunner:
             "-output",
             results_path,
             "-insecure",
+            "-max-workers",
+            str(cfg.effective_max_workers),
         ]
-        if cfg.effective_max_workers is not None:
-            args += ["-max-workers", str(cfg.effective_max_workers)]
         return args
 
     def _run_attack(self, target: VegetaTarget, cfg: VegetaConfig) -> dict:

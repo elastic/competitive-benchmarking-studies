@@ -18,6 +18,7 @@ blocks_storage:
 compactor:
   data_dir: /tmp/mimir-data/compactor
   compaction_interval: 3m
+  cleanup_interval: 3m
   deletion_delay: 0s
 
 store_gateway:

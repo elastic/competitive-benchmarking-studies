@@ -6,19 +6,16 @@ dependencies = [
     "jinja2>=3.1",
     "pyyaml>=6.0",
     "matplotlib>=3.8",
+    "tabulate>=0.9",
 ]
 
 [project.scripts]
-load = "load.cli:main"
-wait-for = "load.wait_for:main"
-disk-usage = "disk_usage.cli:main"
-query = "query.cli:main"
-
-[tool.setuptools]
-py-modules = ["engine_config", "es_utils"]
-
-[tool.setuptools.packages.find]
-include = ["load*", "query*", "store*", "disk_usage*"]
+load = "benchmark.load.cli:main"
+wait-for = "benchmark.load.wait_for:main"
+disk-usage = "benchmark.disk_usage.cli:main"
+query = "benchmark.query.cli:main"
+report = "benchmark.report:main"
+run-engine = "benchmark.run_engine:main"
 
 [tool.uv]
 package = true

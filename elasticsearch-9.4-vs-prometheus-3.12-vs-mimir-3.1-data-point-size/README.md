@@ -4,17 +4,100 @@ Measures bytes per data point for three time-series engines after ingesting iden
 
 ## Results
 
-| Engine        | Version         | Data Points | Size     | Bytes/DP |
-|---------------|-----------------|-------------|----------|----------|
-| Elasticsearch | 9.4.2           | 225,180,000 | 653.7 MB | 3.04     |
-| Prometheus    | 3.12.0          | 225,180,000 | 828.2 MB | 3.86     |
-| Mimir         | 3.1.0           | 225,180,000 | 829.3 MB | 3.86     |
+| Engine        | Version | Data Points | Size     | Bytes/DP | Elapsed | EPS     |
+|---------------|---------|-------------|----------|----------|---------|---------|
+| Elasticsearch | 9.4.2   | 225,180,000 | 801.5 MB | 3.73     | 14m17s  | 262,480 |
+| Prometheus    | 3.12.0  | 225,180,000 | 828.9 MB | 3.86     | 10m27s  | 358,972 |
+| Mimir         | 3.1.1   | 225,180,000 | 838.7 MB | 3.91     | 10m45s  | 348,854 |
 
 Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, synthetic document IDs, doc value skippers (no inverted indices on dimensions), and trimmed sequence numbers — all applied automatically via the built-in OTel index template.
 
+Elapsed/EPS measure the `metricsgenreceiver` ingestion run only (wall-clock time ÷ data points), not the storage-measurement step that follows it (force-merge/snapshot/flush).
+
+### Query Benchmark Results
+
+Each engine ran the same 12 PromQL/ES|QL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all three engines.
+
+| Query                                       | Elasticsearch (p50/p95/p99 ms) | Prometheus (p50/p95/p99 ms)   | Mimir (p50/p95/p99 ms)        |
+|----------------------------------------------|---------------------------------|--------------------------------|---------------------------------|
+| avg_avgot_memory_by_host_1h                   | 26.0 / 29.8 / 32.5               | 545.8 / 554.1 / 556.1           | 905.4 / 915.9 / 926.0            |
+| avg_avgot_memory_by_host_5m                   | 42.8 / 46.6 / 48.2               | 508.9 / 513.3 / 514.7           | 837.0 / 847.2 / 853.4            |
+| avg_avgot_memory_by_host_30m_window_90m       | 29.6 / 33.5 / 34.3               | 590.1 / 593.2 / 594.0           | 907.9 / 918.0 / 923.1            |
+| avg_rate_cpu_by_host_1h                       | 143.8 / 147.0 / 148.3            | 3518.7 / 3557.6 / 3560.1        | 4251.7 / 4263.6 / 5493.0         |
+| avg_rate_cpu_by_host_5m                       | 244.9 / 249.1 / 250.8            | 3262.1 / 3273.2 / 3279.7        | 3921.0 / 3929.1 / 3942.0         |
+| avg_rate_cpu_by_host_30m_window_90m           | 171.3 / 174.6 / 176.0            | 3615.1 / 3658.3 / 3658.7        | 4381.7 / 4392.0 / 4393.6         |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m    | 7.0 / 7.4 / 8.1                  | 3.2 / 3.4 / 3.7                 | 5.3 / 5.4 / 5.6                  |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m      | 22.0 / 22.6 / 24.3               | 87.0 / 88.8 / 90.3              | 112.5 / 115.7 / 117.0            |
+| sum_rate_sys_cpu_time_large_clause_5m         | 685.5 / 695.2 / 703.8            | 3379.1 / 3394.6 / 3402.4        | 4252.0 / 4262.8 / 4264.2         |
+| sum_lot_filesystem_usage_top5                 | 25.7 / 27.9 / 29.6               | 440.8 / 444.8 / 445.9           | 547.0 / 551.6 / 552.6            |
+| avgot_memory_by_tbucket_1h                    | 76.1 / 78.0 / 78.9               | 549.6 / 558.3 / 560.1           | 685.0 / 690.4 / 694.0            |
+| rate_cpu_by_tbucket_1h                        | 271.6 / 278.2 / 285.7            | 3520.7 / 3576.7 / 3579.7        | 4344.1 / 4355.0 / 4355.8         |
+
+Per-engine breakdown with RPS and success rate:
+
+<details>
+<summary>Elasticsearch</summary>
+
+| Query                                          | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------------------------------------------------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h                      |   26.0 |   29.8 |   32.5 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m                      |   42.8 |   46.6 |   48.2 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m          |   29.6 |   33.5 |   34.3 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h                          |  143.8 |  147.0 |  148.3 | 3.0 | 100 |
+| avg_rate_cpu_by_host_5m                          |  244.9 |  249.1 |  250.8 | 3.0 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m              |  171.3 |  174.6 |  176.0 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m       |    7.0 |    7.4 |    8.1 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m         |   22.0 |   22.6 |   24.3 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m            |  685.5 |  695.2 |  703.8 | 1.5 | 100 |
+| sum_lot_filesystem_usage_top5                    |   25.7 |   27.9 |   29.6 | 3.0 | 100 |
+| avgot_memory_by_tbucket_1h                       |   76.1 |   78.0 |   78.9 | 3.0 | 100 |
+| rate_cpu_by_tbucket_1h                           |  271.6 |  278.2 |  285.7 | 3.0 | 100 |
+
+</details>
+
+<details>
+<summary>Prometheus</summary>
+
+| Query                                          | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------------------------------------------------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h                      |  545.8 |  554.1 |  556.1 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m                      |  508.9 |  513.3 |  514.7 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m          |  590.1 |  593.2 |  594.0 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h                          | 3518.7 | 3557.6 | 3560.1 | 0.3 | 100 |
+| avg_rate_cpu_by_host_5m                          | 3262.1 | 3273.2 | 3279.7 | 0.3 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m              | 3615.1 | 3658.3 | 3658.7 | 0.3 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m       |    3.2 |    3.4 |    3.7 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m         |   87.0 |   88.8 |   90.3 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m            | 3379.1 | 3394.6 | 3402.4 | 0.3 | 100 |
+| sum_lot_filesystem_usage_top5                    |  440.8 |  444.8 |  445.9 | 2.3 | 100 |
+| avgot_memory_by_tbucket_1h                       |  549.6 |  558.3 |  560.1 | 3.0 | 100 |
+| rate_cpu_by_tbucket_1h                           | 3520.7 | 3576.7 | 3579.7 | 0.3 | 100 |
+
+</details>
+
+<details>
+<summary>Mimir</summary>
+
+| Query                                          | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------------------------------------------------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h                      |  905.4 |  915.9 |  926.0 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m                      |  837.0 |  847.2 |  853.4 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m          |  907.9 |  918.0 |  923.1 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h                          | 4251.7 | 4263.6 | 5493.0 | 0.2 | 100 |
+| avg_rate_cpu_by_host_5m                          | 3921.0 | 3929.1 | 3942.0 | 0.3 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m              | 4381.7 | 4392.0 | 4393.6 | 0.2 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m       |    5.3 |    5.4 |    5.6 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m         |  112.5 |  115.7 |  117.0 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m            | 4252.0 | 4262.8 | 4264.2 | 0.2 | 100 |
+| sum_lot_filesystem_usage_top5                    |  547.0 |  551.6 |  552.6 | 1.8 | 100 |
+| avgot_memory_by_tbucket_1h                       |  685.0 |  690.4 |  694.0 | 3.0 | 100 |
+| rate_cpu_by_tbucket_1h                           | 4344.1 | 4355.0 | 4355.8 | 0.2 | 100 |
+
+</details>
+
 ## Prerequisites
 
-- Docker (with at least 6 GB memory allocated)
+- Docker (memory allocated to Docker Desktop/engine must be at least `.env`'s `CONTAINER_MEMORY_LIMIT`, since one engine's container runs at a time)
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
 - `curl` and `tar` (pre-installed on macOS and most Linux distros)
@@ -25,47 +108,241 @@ Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, 
 # Install Python deps + download metricsgenreceiver and vegeta into .bin/
 make setup
 
-# Run all three engines sequentially — ingests data and runs query benchmarks (~45 min total)
+# Run all three engines sequentially — ingests data, runs query benchmarks, and
+# measures on-disk storage for each engine before tearing it down
 make run
 
-# Or run individually — each target ingests data then immediately runs queries
+# Or run individually — each target starts the engine, ingests data, runs
+# queries, measures disk usage, then stops the engine before returning
 make elasticsearch    # ~15 min
 make prometheus       # ~15 min
 make mimir            # ~15 min
 
-# Display storage comparison
+# Display the storage comparison table + chart
 make report
-
-# Re-run query benchmarks standalone (requires services to still be running)
-make query            # all three engines
-make query-es         # Elasticsearch only
-make query-prometheus # Prometheus only
-make query-mimir      # Mimir only
 ```
+
+Each `make <engine>` target starts the container, delegates to `run-engine`
+(see [How It Works](#how-it-works)), then stops the container. To re-run just
+one step against a container that's still up, call the underlying commands
+directly:
+
+```bash
+# Re-run query benchmarks for one engine only
+uv run query --engine elasticsearch --benchmark duration_240m-query_200m-scale_100
+
+# Re-measure storage for one engine only — nothing is defaulted, so every
+# required variable must be set explicitly (`make <engine>` sets all of these
+# for you; this is what to export if calling disk-usage directly)
+ENGINE=elasticsearch ELASTICSEARCH_URL=http://localhost:9200 \
+  RESULTS_FILE=results/elasticsearch.json ES_DATA_STREAM=metrics-hostmetricsreceiver.otel-default \
+  uv run disk-usage --benchmark duration_240m-query_200m-scale_100
+```
+
+Each engine target stops its own container (`docker compose down <engine>`) once it finishes, so only one datastore is ever running at a time — this keeps the host's CPU/memory budget dedicated to whichever engine is currently being measured.
 
 ## How It Works
 
-1. **Data generation**: `metricsgenreceiver` generates synthetic OTel hostmetrics (100 hosts × 270 minutes × ~139 metrics/host × 1s interval ≈ 225M data points) and streams directly to each engine via OTLP/HTTP with protobuf + gzip — no intermediate files.
+1. **`make <engine>`** starts that engine's container, waits for it to
+   accept traffic, then runs `uv run run-engine <engine> --benchmark <name>`,
+   and stops the container afterward. Elasticsearch and Prometheus use
+   `docker compose up --wait` (blocking on a `healthcheck:`); Mimir's image
+   is a distroless single binary with no shell/wget/curl at all, so a
+   container-side healthcheck is impossible there — its target instead
+   polls `/ready` externally via `uv run wait-for` before proceeding.
 
-2. **Elasticsearch setup**: The built-in `metrics-otel@template` index template activates automatically. `metrics-otel@custom` overrides replicas/shards/look_back_time. Trial license enables synthetic `_source`.
+2. **`run-engine`** ([`src/benchmark/run_engine.py`](src/benchmark/run_engine.py))
+   is the single orchestrator for one engine's full cycle. It derives `ENGINE`
+   and `RESULTS_FILE` from its own `<engine>` argument (so the caller never
+   declares the engine twice), runs Elasticsearch-only bootstrap steps if
+   applicable, then invokes `load` → `query` → `disk-usage` as subprocesses,
+   forwarding `--benchmark` to each.
 
-3. **Storage measurement**:
-   - **Elasticsearch**: `_forcemerge` to 1 segment, then `_cat/indices` for `dataset.size`
-   - **Prometheus**: `POST /api/v1/admin/tsdb/snapshot` → measure snapshot directory size (blocks only, excludes WAL) ÷ `prometheus_tsdb_head_samples_appended_total`. Matches the [methodology used by the Prometheus team](https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh).
-   - **Mimir**: `POST /ingester/flush` to force block compaction, then measure blocks directory size
+3. **Elasticsearch bootstrap** (skipped for Prometheus/Mimir): starts the
+   30-day trial license (required for synthetic `_source`), applies the
+   `metrics-otel@custom` component template and `metrics-policy` ILM policy
+   from [`deploy/config/elasticsearch/`](deploy/config/elasticsearch/), and recreates the
+   data stream so it picks up the new template settings.
+
+4. **`load`** ([`src/benchmark/load/`](src/benchmark/load/)) runs
+   `metricsgenreceiver` to generate synthetic OTel hostmetrics (scale × interval ×
+   window from the selected benchmark scenario — the default is 100 hosts × 1s
+   interval × 270 minutes × ~139 metrics/host ≈ 225M data points) and streams
+   them directly to the engine via OTLP/HTTP with protobuf + gzip — no
+   intermediate files.
+
+5. **`query`** ([`src/benchmark/query/`](src/benchmark/query/)) runs the
+   selected queryset's per-engine queries through `vegeta` and records
+   p50/p95/p99 latency, throughput, and success rate.
+
+6. **`disk-usage`** ([`src/benchmark/disk_usage/`](src/benchmark/disk_usage/))
+   measures on-disk storage per engine:
+   - **Elasticsearch**: `_forcemerge` to 1 segment, then `_disk_usage` for exact byte counts.
+   - **Prometheus**: `POST /api/v1/admin/tsdb/snapshot` → measure snapshot directory size (blocks only, excludes WAL). Matches the [methodology used by the Prometheus team](https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh).
+   - **Mimir**: `POST /ingester/flush` to force block compaction, then polls block count + directory size until two consecutive samples match (`deletion_delay=0s` only marks obsolete blocks for removal — the actual delete happens on the compactor's next `cleanup_interval`, so measuring too early overcounts) before measuring the blocks directory.
+
+7. **`report`** ([`src/benchmark/report.py`](src/benchmark/report.py)) reads
+   `results/<engine>.json` for each engine and prints the comparison table +
+   bar chart.
+
+Every step reads the same required environment: `ENGINE` (one of
+`elasticsearch`/`prometheus`/`mimir`), `RESULTS_FILE`, and the connection URL
+matching the active engine — see [`src/benchmark/engine_config.py`](src/benchmark/engine_config.py).
+Nothing is silently defaulted: if a required variable is missing, the command
+aborts immediately with a clear message rather than guessing.
+
+## Project Layout
+
+```
+src/benchmark/          # all Python code (installed as the "benchmark" package)
+  engine_config.py      # ENGINE validation + per-engine connection config
+  run_engine.py         # orchestrates bootstrap + load/query/disk-usage for one engine
+  load/                 # metricsgenreceiver config rendering + execution
+  query/                # queryset loading + vegeta execution
+  disk_usage/           # per-engine storage measurement
+  store/                # results/<engine>.json read/write
+  utils/                # per-engine HTTP helpers (es.py, prometheus.py, mimir.py) + generic helpers (fs.py, size.py, time.py)
+  scenarios.py          # resolves scenarios/<name>.yml + its queryset reference
+  report.py             # cross-engine comparison table + chart
+scenarios/               # scenario definitions (<name>.yml)
+querysets/                # query definitions, referenced by name from a scenario
+deploy/
+  docker/                 # docker-compose.yml
+  config/                 # per-engine runtime config (elasticsearch/, mimir.yaml, prometheus.yml)
+```
+
+## Benchmarks: scenarios & querysets
+
+A **benchmark** (`scenarios/<name>.yml`) is the ingest scenario — how much
+data to generate and which queryset to run against it:
+
+```yaml
+name: duration_240m-query_200m-scale_100
+description: Bytes/datapoint comparison, 100 hosts, 1s interval, 270m window
+
+ingest:
+  scale: 100             # simulated hosts
+  interval: 1s            # metric emission interval
+  start_now_minus: 270m   # data window (historical replay)
+  seed: 123               # reproducibility seed
+
+queryset: default         # → querysets/default.yml
+```
+
+A **queryset** (`querysets/<name>.yml`) is the set of queries run against
+each engine after ingest — global `defaults` (vegeta rate/duration/workers,
+with per-query overrides) plus a `targets.<engine>` block per engine, each
+with its own `target.base_url`/`method`/`path` and a list of `queries`
+(Jinja2-templated bodies with `tend`/`tstart`/`now` and any custom
+`queries_runtime_params` available). See [`querysets/default.yml`](querysets/default.yml)
+for the full schema in practice.
+
+Everything is resolved by [`src/benchmark/scenarios.py`](src/benchmark/scenarios.py)'s
+`load_benchmark(name)`, which every command (`load`, `query`, `disk-usage`,
+`run-engine`) takes as `--benchmark <name>` (required — there's no default
+baked into the code; `Makefile`'s `BENCHMARK ?= duration_240m-query_200m-scale_100`
+is the one place a convenience default lives).
+
+**To run an existing benchmark under a different name:**
+
+```bash
+BENCHMARK=<name> make elasticsearch
+# or directly:
+uv run load --benchmark <name>
+```
+
+**To add a new benchmark scenario** (e.g. a higher-cardinality run):
+
+1. Copy an existing `scenarios/*.yml`, give it a new `name` matching the filename, and adjust `ingest.*`.
+2. Point `queryset:` at an existing queryset name to reuse its queries, or add a new `querysets/<name>.yml` if the new scenario needs different queries.
+3. Run it: `BENCHMARK=<new-name> make elasticsearch` (or any engine).
+
+**To add or change queries** for an existing queryset, edit its
+`targets.<engine>.queries` list directly — no other file needs to change,
+since every `scenarios/*.yml` referencing that queryset picks up the new
+queries automatically.
+
+## Adding a new engine
+
+1. **`src/benchmark/engine_config.py`** — add an entry to `_ENGINES` (`url_env`, `otlp_path`, `version_env`).
+2. **`src/benchmark/utils/<engine>.py`** — new module with the engine's raw HTTP calls (mirror `utils/prometheus.py`/`utils/mimir.py`'s shape); **`src/benchmark/disk_usage/measure.py`** — add `measure_<engine>()` and wire it into `disk_usage/cli.py`'s dispatch.
+3. **`deploy/docker/docker-compose.yml`** — add the service, plus its config file under **`deploy/config/`**. Add a `healthcheck:` if the image has a shell and `wget`/`curl` (verify with `docker run --rm --entrypoint sh <image> -c 'wget --version'` before relying on it — don't assume; Mimir's image has neither). If it does, the Makefile target can use `docker compose up -d --wait <engine>`; if not, mirror Mimir's pattern instead (`docker compose up -d <engine>` + `uv run wait-for <ready-url>`).
+4. **`Makefile`** — add a target mirroring `elasticsearch`/`prometheus`/`mimir`; **`.env`** — add the engine's version pin and connection URL.
+5. **`querysets/*.yml`** — add a `targets.<engine>` block with equivalent queries.
+6. **`src/benchmark/report.py`** — add the engine to `ENGINES` and `ENGINE_COLORS`.
+7. If the engine needs bootstrap steps analogous to Elasticsearch's (license/template/ILM), add a `_bootstrap_<engine>()` to **`src/benchmark/run_engine.py`** and call it from `main()`.
 
 ## Configuration
 
-Edit `.env` to adjust:
+Engine connection/version/resource details live in `.env` — see that file
+directly for current values (deliberately not repeated here as a table,
+since a hardcoded copy of `.env`'s values in this README would drift the
+moment `.env` changes, which it does often as machine sizing gets tuned):
 
-| Variable | Default | Description |
-|---|---|---|
-| `ES_VERSION` | `9.4.2` | ES image tag |
-| `SCALE` | `100` | Simulated hosts |
-| `INTERVAL` | `1s` | Metric emission interval |
-| `START_NOW_MINUS` | `270m` | Data window (historical replay) |
-| `ES_HEAP` | `4g` | Elasticsearch JVM heap |
+| Variable | Description |
+|---|---|
+| `ES_VERSION` / `PROMETHEUS_VERSION` / `MIMIR_VERSION` | Engine image tags |
+| `ELASTICSEARCH_URL` / `PROMETHEUS_URL` / `MIMIR_URL` | Local docker compose ports |
+| `ES_HEAP` | Elasticsearch JVM heap — should be roughly half of `CONTAINER_MEMORY_LIMIT` |
+| `ES_DATA_STREAM` | Elasticsearch data stream/index name |
+| `CONTAINER_MEMORY_LIMIT` / `CONTAINER_CPU_LIMIT` | Resource limits applied to each engine's container |
+
+Scenario parameters (`scale`, `interval`, `start_now_minus`, `seed`, and which
+queryset to run) live in `scenarios/*.yml` instead — see
+[Benchmarks: scenarios & querysets](#benchmarks-scenarios--querysets) above.
 
 ## Methodology
 
 Matches the team's [columnar metrics engine benchmark](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-metrics-engine-30x-faster-prometheus) (low-cardinality setup: 100 hosts, 1s interval). Scale is configurable.
+
+## Reproducible Cloud Runs (AWS)
+
+For a clean, reproducible environment — or to run the benchmark on beefier hardware than a laptop — `deploy/terraform/aws/` provisions an EC2 instance that clones this repo and runs the benchmark unattended via cloud-init.
+
+The instance type defaults to `c8gd.4xlarge`, which has local NVMe instance storage; the cloud-init script formats it (RAID-0 across multiple NVMe devices if the instance type has more than one) and mounts it as both the Docker `data-root` and the benchmark's working directory, so ingestion isn't bottlenecked by EBS.
+
+```bash
+cd deploy/terraform/aws
+terraform init
+terraform apply \
+  -var github_token=<token>   # optional — omit for a public repo/branch
+```
+
+Key variables (see `variables.tf` for the full list and defaults):
+
+| Variable | Default | Description |
+|---|---|---|
+| `repo` | `elastic/competitive-benchmarking-studies` | GitHub repo to clone |
+| `branch` | `main` | Branch to check out |
+| `github_token` | `""` | Optional — only needed for private repos/forks |
+| `machine` | `c8gd.4xlarge` | EC2 instance type (must have local NVMe storage) |
+| `nvme_mount` | `/data` | Mount point for the local NVMe device |
+| `run_command` | `make setup run` | Full command executed on the instance after cloning — override to run a single engine, e.g. `make setup elasticsearch` |
+| `shutdown` | `false` | Terminate the instance automatically once `run_command` finishes |
+| `key_name` | `null` | EC2 key pair for SSH access (optional — see below if omitted) |
+| `tags` | `{}` | Additional tags to apply to the instance |
+
+Terraform prints `instance_id`, `public_ip`, and a ready-to-run `console_log_command` for tailing cloud-init progress via `aws ec2 get-console-output`.
+
+### Retrieving results
+
+The benchmark log is written to `<nvme_mount>/benchmark.log`, and the JSON results land in `<nvme_mount>/repo/elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/results/`.
+
+If you didn't set `key_name`, you can still pull files off the instance via EC2 Instance Connect — push a short-lived key and `scp` with it:
+
+```bash
+INSTANCE_ID=$(terraform output -raw instance_id)
+PUBLIC_IP=$(terraform output -raw public_ip)
+AZ=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+  --query 'Reservations[0].Instances[0].Placement.AvailabilityZone' --output text)
+
+ssh-keygen -t ed25519 -f /tmp/ec2-ic-key -N ""
+aws ec2-instance-connect send-ssh-public-key \
+  --instance-id "$INSTANCE_ID" --instance-os-user ubuntu \
+  --availability-zone "$AZ" --ssh-public-key file:///tmp/ec2-ic-key.pub
+
+scp -i /tmp/ec2-ic-key ubuntu@"$PUBLIC_IP":/data/benchmark.log .
+scp -i /tmp/ec2-ic-key "ubuntu@$PUBLIC_IP:/data/repo/elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/results/*.json" ./results/
+```
+
+Remember to `terraform destroy` when you're done, unless `shutdown = true` was set (which terminates the instance automatically, since `instance_initiated_shutdown_behavior` is `terminate`).

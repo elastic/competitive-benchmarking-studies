@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 
 
@@ -14,6 +15,7 @@ class ResultStore:
         start_ts: int,
         end_ts: int,
         elapsed_seconds: float = 0.0,
+        benchmark: str | None = None,
         path: str | None = None,
     ) -> None:
         dest = Path(path) if path else self._dir / f"{engine}.json"
@@ -22,6 +24,8 @@ class ResultStore:
         record = {
             "engine": engine,
             "version": version,
+            "run_at": int(time.time()),
+            "benchmark": benchmark,
             "datapoints": datapoints,
             "start_ts": start_ts,
             "end_ts": end_ts,

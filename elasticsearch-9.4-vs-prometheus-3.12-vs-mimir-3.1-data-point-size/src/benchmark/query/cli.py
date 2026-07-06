@@ -4,7 +4,8 @@ import os
 import sys
 import time
 
-from store.results import ResultStore
+from benchmark.scenarios import load_benchmark
+from benchmark.store.results import ResultStore
 
 from .executor import VegetaRunner
 from .loader import QueryLoader
@@ -13,52 +14,53 @@ from .models import (
     BenchmarkResults,
     VegetaConfig,
     VegetaTarget,
+    parse_time_arg,
     to_iso,
 )
-
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-QUERIES_FILE = os.path.join(_ROOT, "queries.yml")
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Query performance benchmark")
     parser.add_argument(
+        "--benchmark",
+        required=True,
+        help="Benchmark scenario providing the queryset to run (see scenarios/*.yml)",
+    )
+    parser.add_argument(
         "--from",
         dest="from_arg",
         default=None,
-        type=int,
-        metavar="UNIX_TS",
-        help="Start time as a Unix timestamp (default: read from results/{engine}.json)",
+        metavar="TIME",
+        help="Start time as a Unix timestamp, 'now', or a duration before now "
+        "like '270m'/'4h'/'30s' (default: read from results/{engine}.json)",
     )
     parser.add_argument(
         "--to",
         dest="to_arg",
         default=None,
-        type=int,
-        metavar="UNIX_TS",
-        help="End time as a Unix timestamp (default: read from results/{engine}.json)",
+        metavar="TIME",
+        help="End time as a Unix timestamp, 'now', or a duration before now "
+        "like '270m'/'4h'/'30s' (default: read from results/{engine}.json)",
     )
     parser.add_argument(
         "--engine",
         dest="engine",
-        help="Run only this engine (overrides QUERY_ENGINE env var)",
+        help="Run only this engine (overrides ENGINE env var)",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
+    scenario = load_benchmark(args.benchmark)
 
-    results_file = os.environ.get("RESULTS_FILE")
-    if not results_file:
-        sys.exit("RESULTS_FILE environment variable is required")
+    engine_filter = args.engine or os.environ.get("ENGINE")
+    if not engine_filter:
+        sys.exit("No engine specified. Use --engine or ENGINE env var.")
 
+    results_file = os.environ.get("RESULTS_FILE") or f"results/{engine_filter}.json"
     store = ResultStore(os.path.dirname(results_file))
     runner = VegetaRunner()
-
-    engine_filter = args.engine or os.environ.get("QUERY_ENGINE")
-    if not engine_filter:
-        sys.exit("No engine specified. Use --engine or QUERY_ENGINE env var.")
 
     ts = store.load_time_range(engine_filter)
     if not ts:
@@ -72,9 +74,12 @@ def main() -> None:
         f"{to_iso(start_ts)} → {to_iso(end_ts)}"
     )
 
-    from_ts: int = args.from_arg or start_ts
-    to_ts: int = args.to_arg or end_ts
     now = int(time.time())
+    try:
+        from_ts: int = parse_time_arg(args.from_arg, now) if args.from_arg else start_ts
+        to_ts: int = parse_time_arg(args.to_arg, now) if args.to_arg else end_ts
+    except ValueError as e:
+        sys.exit(str(e))
     ctx = {
         "now": now,
         "from": from_ts,
@@ -82,12 +87,12 @@ def main() -> None:
     }
 
     try:
-        defaults, groups = QueryLoader().load(QUERIES_FILE, ctx)
+        defaults, groups = QueryLoader().load(str(scenario.queryset_path), ctx)
     except FileNotFoundError:
-        sys.exit(f"queries.yml not found at {QUERIES_FILE}")
+        sys.exit(f"Queryset not found at {scenario.queryset_path}")
 
     if engine_filter and engine_filter not in groups:
-        sys.exit(f"Engine {engine_filter!r} not found in queries.yml")
+        sys.exit(f"Engine {engine_filter!r} not found in {scenario.queryset_path}")
 
     all_results: list[AttackReport] = []
 
@@ -137,4 +142,4 @@ def main() -> None:
         )
         return
 
-    sys.exit("No queries ran — check --engine / QUERY_ENGINE filter.")
+    sys.exit("No queries ran — check --engine / ENGINE filter.")

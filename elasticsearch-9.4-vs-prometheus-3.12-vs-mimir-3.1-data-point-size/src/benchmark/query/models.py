@@ -136,7 +136,7 @@ class AttackReport:
 
 def _make_result_template() -> Template:
     env = Environment(
-        loader=PackageLoader("query", "templates"),
+        loader=PackageLoader("benchmark.query", "templates"),
         trim_blocks=True,
         lstrip_blocks=True,
     )

@@ -5,15 +5,19 @@ import time
 import urllib.error
 import urllib.request
 
-from engine_config import ES_URL
+from benchmark.engine_config import BASE_URL
 
 MERGE_POLL_SECONDS = 10
 MERGE_TIMEOUT_SECONDS = 3600
 
 
-def _es_request(method: str, path: str) -> tuple[int, object]:
-    base_url = ES_URL.rstrip("/")
-    req = urllib.request.Request(base_url + path, method=method)
+def _es_request(method: str, path: str, body: dict | None = None) -> tuple[int, object]:
+    base_url = BASE_URL.rstrip("/")
+    data = json.dumps(body).encode() if body is not None else None
+    headers = {"Content-Type": "application/json"} if body is not None else {}
+    req = urllib.request.Request(
+        base_url + path, method=method, data=data, headers=headers
+    )
 
     try:
         with urllib.request.urlopen(req) as r:
@@ -73,3 +77,46 @@ def es_doc_count(data_stream: str) -> int:
     if status != 200:
         raise RuntimeError(f"GET {path} failed: HTTP {status} {doc_stats}")
     return sum(int(idx.get("docs.count", 0)) for idx in doc_stats or [])
+
+
+def es_start_trial_license() -> None:
+    """Start the free 30-day trial license (idempotent) — required for
+    synthetic _source in TSDB."""
+    path = "/_license/start_trial?acknowledge=true"
+    status, body = _es_request("POST", path)
+    if status != 200:
+        raise RuntimeError(f"POST {path} failed: HTTP {status} {body}")
+    print(f"✓ Trial license: {body.get('trial_was_started', 'already active')}")
+
+
+def es_apply_component_template(path: str, name: str) -> None:
+    """PUT a component template JSON file at path to /_component_template/{name}."""
+    with open(path) as f:
+        template = json.load(f)
+    req_path = f"/_component_template/{name}"
+    status, body = _es_request("PUT", req_path, body=template)
+    if status != 200:
+        raise RuntimeError(f"PUT {req_path} failed: HTTP {status} {body}")
+    print("✓ Component template applied")
+
+
+def es_apply_ilm_policy(path: str, name: str) -> None:
+    """PUT an ILM policy JSON file at path to /_ilm/policy/{name}."""
+    with open(path) as f:
+        policy = json.load(f)
+    req_path = f"/_ilm/policy/{name}"
+    status, body = _es_request("PUT", req_path, body=policy)
+    if status != 200:
+        raise RuntimeError(f"PUT {req_path} failed: HTTP {status} {body}")
+    print("✓ ILM policy applied")
+
+
+def es_recreate_data_stream(name: str) -> None:
+    """Delete (if present) and recreate a data stream, so it picks up the
+    latest component template / ILM policy settings."""
+    _es_request("DELETE", f"/_data_stream/{name}")
+    req_path = f"/_data_stream/{name}"
+    status, body = _es_request("PUT", req_path)
+    if status != 200:
+        raise RuntimeError(f"PUT {req_path} failed: HTTP {status} {body}")
+    print("✓ Data stream created")

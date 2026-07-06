@@ -7,10 +7,12 @@ export PATH := $(abspath $(BIN_DIR)):$(PATH)
 export UID := $(shell id -u)
 export GID := $(shell id -g)
 
+BENCHMARK ?= duration_270m-query_240m-scale_100
+
 # Tells docker compose where to find the compose file without requiring -f on every call
 export COMPOSE_FILE ?= deploy/docker/docker-compose.yml
 
-.PHONY: help run elasticsearch prometheus mimir report setup clean query query-es query-mimir query-prometheus disk-usage disk-usage-es disk-usage-mimir disk-usage-prometheus lint
+.PHONY: help run elasticsearch prometheus mimir report setup clean lint
 
 .DEFAULT_GOAL := help
 
@@ -27,22 +29,16 @@ help:
 	@echo ""
 	@echo "Benchmark:"
 	@echo "  make run            Run all three engines sequentially (~45 min)"
-	@echo "  make elasticsearch  Ingest OTel data into Elasticsearch (~15 min)"
-	@echo "  make prometheus     Ingest OTel data into Prometheus (~15 min)"
-	@echo "  make mimir          Ingest OTel data into Mimir (~15 min)"
-	@echo ""
-	@echo "Query performance:"
-	@echo "  make query          Run query benchmarks against all three engines"
-	@echo "  make query-es       Run query benchmarks against Elasticsearch only"
-	@echo "  make query-prometheus  Run query benchmarks against Prometheus only"
-	@echo "  make query-mimir    Run query benchmarks against Mimir only"
+	@echo "  make elasticsearch  Ingest + query + measure Elasticsearch (~15 min)"
+	@echo "  make prometheus     Ingest + query + measure Prometheus (~15 min)"
+	@echo "  make mimir          Ingest + query + measure Mimir (~15 min)"
 	@echo ""
 	@echo "Results:"
 	@echo "  make report         Print bytes-per-data-point comparison table"
-	@echo "  make disk-usage     Re-measure on-disk storage for all engines without re-ingesting"
-	@echo "  make disk-usage-es  Re-measure Elasticsearch storage only"
-	@echo "  make disk-usage-prometheus  Re-measure Prometheus storage only"
-	@echo "  make disk-usage-mimir  Re-measure Mimir storage only"
+	@echo ""
+	@echo "Standalone (requires the target engine's container to still be running):"
+	@echo "  uv run query --engine <name>       Re-run query benchmarks for one engine"
+	@echo "  uv run disk-usage (with ENGINE=<name> exported) Re-measure storage for one engine"
 	@echo ""
 	@echo "Dev:"
 	@echo "  make lint           Run ruff linter"
@@ -50,101 +46,37 @@ help:
 	@echo "Cleanup:"
 	@echo "  make clean          Stop containers, remove volumes, wipe data/, results/, and .bin/"
 	@echo ""
-	@echo "Configuration: edit .env (ES_VERSION, SCALE, INTERVAL, START_NOW_MINUS, ES_HEAP)"
+	@echo "Configuration: edit .env (ES_VERSION, ES_HEAP, ES_DATA_STREAM); select a scenario"
+	@echo "  with BENCHMARK=<name> (default: $(BENCHMARK)) — see scenarios/*.yml"
 
 run: elasticsearch prometheus mimir report
 
 # ── Elasticsearch ──────────────────────────────────────────────────────────────
-elasticsearch: export ELASTICSEARCH_URL  = http://localhost:9200
-elasticsearch: export RESULTS_FILE       = results/elasticsearch.json
-elasticsearch: export QUERY_ENGINE       = elasticsearch
 elasticsearch:
 	@echo "\n━━━ Elasticsearch $(ES_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	docker compose up -d --wait elasticsearch
 	@sleep 2
 	@echo "✓ Elasticsearch ready"
-	@# Trial license — free 30-day, required for synthetic _source in TSDB (idempotent)
-	@curl -s -X POST "http://localhost:9200/_license/start_trial?acknowledge=true" | \
-	  python3 -c "import sys,json; r=json.load(sys.stdin); print('✓ Trial license:', r.get('trial_was_started','already active'))"
-	@# Apply OTel custom component template (0 replicas, 3 shards, 7d look_back)
-	@curl -sf -X PUT http://localhost:9200/_component_template/metrics-otel@custom \
-	  -H "Content-Type: application/json" \
-	  -d @config/elasticsearch/metrics-otel@custom.json >/dev/null \
-	  && echo "✓ Component template applied"
-	@# Apply ILM policy
-	@curl -sf -X PUT http://localhost:9200/_ilm/policy/metrics-policy \
-	  -H "Content-Type: application/json" \
-	  -d @config/elasticsearch/metrics-policy.json >/dev/null \
-	  && echo "✓ ILM policy applied"
-	@# Delete existing data stream so it picks up the new template settings
-	@curl -s -X DELETE http://localhost:9200/_data_stream/metrics-demo.otel-default >/dev/null || true
-	@curl -sf -X PUT http://localhost:9200/_data_stream/metrics-demo.otel-default >/dev/null \
-	  && echo "✓ Data stream created"
-	@echo "Ingesting data..."
-	uv run load --wait-for-merges
-	@echo "Running queries..."
-	@uv run query
-	@echo "Calculating disk usage..."
-	@uv run disk-usage
+	uv run run-engine elasticsearch --benchmark $(BENCHMARK)
 	docker compose down elasticsearch
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
-prometheus: export PROMETHEUS_URL = http://localhost:9090
-prometheus: export RESULTS_FILE   = results/prometheus.json
-prometheus: export QUERY_ENGINE   = prometheus
 prometheus:
 	@echo "\n━━━ Prometheus $(PROMETHEUS_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/prometheus && mkdir -p data/prometheus
 	docker compose up -d --wait prometheus
 	@echo "✓ Prometheus ready"
-	@echo "Ingesting data..."
-	uv run load
-	@echo "Running queries..."
-	@uv run query
-	@echo "Calculating disk usage..."
-	@uv run disk-usage
+	uv run run-engine prometheus --benchmark $(BENCHMARK)
 	docker compose down prometheus
 
 # ── Mimir ──────────────────────────────────────────────────────────────────────
-mimir: export MIMIR_URL     = http://localhost:8080
-mimir: export RESULTS_FILE  = results/mimir.json
-mimir: export QUERY_ENGINE  = mimir
 mimir:
 	@echo "\n━━━ Mimir $(MIMIR_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@rm -rf data/mimir && mkdir -p data/mimir
 	docker compose up -d mimir
 	@uv run wait-for http://localhost:8080/ready
-	@echo "Ingesting data..."
-	uv run load
-	@echo "Running queries..."
-	@uv run query
-	@echo "Calculating disk usage..."
-	@uv run disk-usage
+	uv run run-engine mimir --benchmark $(BENCHMARK)
 	docker compose down mimir
-
-# ── Storage measurement ─────────────────────────────────────────────────────────
-disk-usage-es:
-	@ELASTICSEARCH_URL=http://localhost:9200 RESULTS_FILE=results/elasticsearch.json uv run disk-usage
-
-disk-usage-prometheus:
-	@PROMETHEUS_URL=http://localhost:9090 RESULTS_FILE=results/prometheus.json uv run disk-usage
-
-disk-usage-mimir:
-	@MIMIR_URL=http://localhost:8080 RESULTS_FILE=results/mimir.json uv run disk-usage
-
-disk-usage: disk-usage-es disk-usage-prometheus disk-usage-mimir
-
-# ── Query performance ──────────────────────────────────────────────────────────
-query-es:
-	@RESULTS_FILE=results/elasticsearch.json QUERY_ENGINE=elasticsearch uv run query
-
-query-prometheus:
-	@RESULTS_FILE=results/prometheus.json QUERY_ENGINE=prometheus uv run query
-
-query-mimir:
-	@RESULTS_FILE=results/mimir.json QUERY_ENGINE=mimir uv run query
-
-query: query-es query-prometheus query-mimir
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
 lint:
@@ -153,7 +85,7 @@ lint:
 
 # ── Results ────────────────────────────────────────────────────────────────────
 report:
-	@uv run python report.py
+	@uv run report
 
 # ── Python environment ─────────────────────────────────────────────────────────
 .venv:
