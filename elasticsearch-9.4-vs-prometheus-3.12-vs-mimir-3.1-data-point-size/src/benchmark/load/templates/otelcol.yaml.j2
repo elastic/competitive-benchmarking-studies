@@ -1,3 +1,4 @@
+{% set uses_transform = drop_host_ip_mac or engine in ("prometheus", "mimir") %}
 receivers:
   metricsgen:
     seed: {{ seed }}
@@ -11,13 +12,21 @@ receivers:
         scale: {{ scale }}
 
 processors:
-  {% if engine in ("prometheus", "mimir") %}
+
   transform:
     metric_statements:
+  {% if drop_host_ip_mac %}
+      - context: resource
+        statements:
+          - delete_key(attributes, "host.ip")
+          - delete_key(attributes, "host.mac")
+  {% endif %}
+  {% if engine in ("prometheus", "mimir") %}
       - context: datapoint
         statements:
           - merge_maps(datapoint.attributes, resource.attributes, "insert")
   {% endif %}
+
   batch:
 
 exporters:
@@ -67,7 +76,7 @@ service:
     metrics:
       receivers: [metricsgen]
       processors:
-        {% if engine in ("prometheus", "mimir") %}
+        {% if uses_transform %}
         - transform
         {% endif %}
         - batch
