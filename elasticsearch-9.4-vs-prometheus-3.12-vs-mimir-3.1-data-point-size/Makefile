@@ -12,7 +12,7 @@ BENCHMARK ?= duration_270m-query_240m-scale_100
 # Tells docker compose where to find the compose file without requiring -f on every call
 export COMPOSE_FILE ?= deploy/docker/docker-compose.yml
 
-.PHONY: help run elasticsearch prometheus mimir report setup clean lint
+.PHONY: help run elasticsearch prometheus mimir clickhouse report setup clean lint
 
 .DEFAULT_GOAL := help
 
@@ -28,10 +28,11 @@ help:
 	@echo "  make setup          Create Python venv + install metricsgenreceiver and vegeta"
 	@echo ""
 	@echo "Benchmark:"
-	@echo "  make run            Run all three engines sequentially (~45 min)"
-	@echo "  make elasticsearch  Ingest + query + measure Elasticsearch (~15 min)"
-	@echo "  make prometheus     Ingest + query + measure Prometheus (~15 min)"
-	@echo "  make mimir          Ingest + query + measure Mimir (~15 min)"
+	@echo "  make run            Run all three engines sequentially"
+	@echo "  make elasticsearch  Ingest + query + measure Elasticsearch"
+	@echo "  make prometheus     Ingest + query + measure Prometheus"
+	@echo "  make mimir          Ingest + query + measure Mimir"
+	@echo "  make clickhouse     Ingest + query + measure ClickHouse"
 	@echo ""
 	@echo "Results:"
 	@echo "  make report         Print bytes-per-data-point comparison table"
@@ -49,7 +50,7 @@ help:
 	@echo "Configuration: edit .env (ES_VERSION, ES_HEAP, ES_DATA_STREAM); select a scenario"
 	@echo "  with BENCHMARK=<name> (default: $(BENCHMARK)) — see scenarios/*.yml"
 
-run: elasticsearch prometheus mimir report
+run: elasticsearch prometheus mimir clickhouse report
 
 # ── Elasticsearch ──────────────────────────────────────────────────────────────
 elasticsearch:
@@ -77,6 +78,15 @@ mimir:
 	@uv run wait-for http://localhost:8080/ready
 	uv run run-engine mimir --benchmark $(BENCHMARK)
 	docker compose down mimir
+
+# ── ClickHouse ─────────────────────────────────────────────────────────────────
+clickhouse:
+	@echo "\n━━━ ClickHouse $(CLICKHOUSE_VERSION) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@rm -rf data/clickhouse && mkdir -p data/clickhouse
+	docker compose up -d --wait clickhouse
+	@echo "✓ ClickHouse ready"
+	uv run run-engine clickhouse --benchmark $(BENCHMARK)
+	docker compose down clickhouse
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
 lint:

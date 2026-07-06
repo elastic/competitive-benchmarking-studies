@@ -198,3 +198,66 @@ targets:
 
       - name: rate_cpu_by_tbucket_1h
         body: "query=rate(system_cpu_time[1h])&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}&step=1h"
+
+  clickhouse:
+    target:
+      base_url: "http://localhost:8123"
+      method: POST
+      path: "/"
+      headers:
+        Content-Type: "text/plain"
+
+    queries:
+      - name: avg_avgot_memory_by_host_1h
+        workers: 8
+        max_workers: 8
+        body: |
+          SELECT toStartOfHour(toDateTime(TimeUnix)) AS t, HostName, AVG(Value) AS avg_utilization_ratio FROM default.otel_metrics_gauge WHERE MetricName = 'system.memory.utilization' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName ORDER BY t, HostName
+
+      - name: avg_avgot_memory_by_host_5m
+        workers: 8
+        max_workers: 8
+        body: |
+          SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS tb, HostName, AVG(Value) AS avg_utilization_ratio FROM default.otel_metrics_gauge WHERE MetricName = 'system.memory.utilization' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY tb, HostName ORDER BY tb, HostName
+
+      - name: avg_avgot_memory_by_host_30m_window_90m
+        workers: 8
+        max_workers: 8
+        body: |
+          SELECT time_bucket, HostName, SUM(sum_val) OVER (PARTITION BY HostName ORDER BY time_bucket ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) / SUM(count_val) OVER (PARTITION BY HostName ORDER BY time_bucket ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_memory_utilization_90m FROM (SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 30 MINUTE) AS time_bucket, HostName, sum(Value) AS sum_val, count(Value) AS count_val FROM default.otel_metrics_gauge WHERE MetricName = 'system.memory.utilization' AND toDateTime(TimeUnix) >= toDateTime({{ tstart_unix }}) - INTERVAL 90 MINUTE AND toDateTime(TimeUnix) <= toDateTime({{ tend_unix }}) GROUP BY time_bucket, HostName) ORDER BY time_bucket ASC, HostName
+
+      - name: avg_rate_cpu_by_host_1h
+        body: |
+          SELECT toStartOfHour(toDateTime(TimeUnix)) AS t, HostName, (MAX(Value) - MIN(Value)) / 3600 AS cpu_time_rate FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName ORDER BY t, HostName
+
+      - name: avg_rate_cpu_by_host_5m
+        body: |
+          SELECT time_bucket, HostName, avg(usage_rate_per_core) AS avg_cpu_rate FROM (SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS time_bucket, HostName, Attributes, (max(Value) - min(Value)) / 300.0 AS usage_rate_per_core FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tstart_unix }}) AND toDateTime(TimeUnix) <= toDateTime({{ tend_unix }}) GROUP BY time_bucket, HostName, Attributes) WHERE usage_rate_per_core >= 0 GROUP BY time_bucket, HostName ORDER BY time_bucket ASC, HostName
+
+      - name: avg_rate_cpu_by_host_30m_window_90m
+        body: |
+          SELECT interval_start AS time_bucket, HostName, avg(series_rate) AS avg_cpu_rate FROM (SELECT HostName, toStartOfInterval(toDateTime(TimeUnix), INTERVAL 30 MINUTE) AS interval_start, (max(Value) - min(Value)) / 9000 AS series_rate FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) <= toDateTime({{ tend_unix }}) GROUP BY HostName, interval_start) GROUP BY time_bucket, HostName ORDER BY time_bucket ASC
+
+      - name: avg_avgot_cpu_load_1m_filtered_by_hosts_5m
+        body: |
+          SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS t, HostName, AVG(Value) AS avg_load_5m FROM default.otel_metrics_gauge WHERE MetricName = 'system.cpu.load_average.1m' AND match(HostName, 'host-0|host-1|host-2') AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName ORDER BY t, HostName
+
+      - name: avg_avgot_cpu_load_1m_prefix_by_hosts_5m
+        body: |
+          SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS t, HostName, AVG(Value) AS avg_load_5m FROM default.otel_metrics_gauge WHERE MetricName = 'system.cpu.load_average.1m' AND match(HostName, 'host-.*') AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName ORDER BY t, HostName
+
+      - name: sum_rate_sys_cpu_time_large_clause_5m
+        body: |
+          WITH rate_calculation AS (SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS t, HostName, ResourceAttributes['host.ip'] AS host_ip, ResourceAttributes['host.mac'] AS host_mac, ResourceAttributes['host.arch'] AS host_arch, ResourceAttributes['cpu'] AS cpu, ResourceAttributes['state'] AS state, ResourceAttributes['host.cpu.cache.l2.size'] AS cache_l2_size, ResourceAttributes['host.cpu.model.id'] AS model_id, ResourceAttributes['host.cpu.stepping'] AS stepping, ResourceAttributes['host.cpu.vendor.id'] AS vendor_id, (MAX(Value) - MIN(Value)) / 300 AS calculated_rate FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName, host_ip, host_mac, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id) SELECT t, HostName, host_ip, host_mac, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id, SUM(calculated_rate) AS total_cpu_rate FROM rate_calculation GROUP BY t, HostName, host_ip, host_mac, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id ORDER BY t, HostName
+
+      - name: sum_lot_filesystem_usage_top5
+        body: |
+          SELECT time_bucket, HostName, mountpoint, sum(latest_value) AS total_bytes FROM (SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS time_bucket, HostName, Attributes['mountpoint'] AS mountpoint, Attributes['state'] AS state, argMax(Value, TimeUnix) AS latest_value FROM default.otel_metrics_sum WHERE MetricName = 'system.filesystem.usage' AND Attributes['state'] IN ('used', 'free') AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) <= toDateTime({{ tend_unix }}) GROUP BY time_bucket, HostName, mountpoint, state) GROUP BY time_bucket, HostName, mountpoint ORDER BY time_bucket ASC, total_bytes DESC LIMIT 5 BY time_bucket
+
+      - name: avgot_memory_by_tbucket_1h
+        body: |
+          SELECT toStartOfHour(toDateTime(TimeUnix)) AS time_bucket, * EXCEPT(TimeUnix, MetricName, Value), AVG(Value) AS avg_memory_ratio FROM default.otel_metrics_gauge WHERE MetricName = 'system.memory.utilization' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) <= toDateTime({{ tend_unix }}) GROUP BY ALL
+
+      - name: rate_cpu_by_tbucket_1h
+        body: |
+          SELECT toStartOfHour(toDateTime(TimeUnix)) AS time_bucket, * EXCEPT(TimeUnix, MetricName, Value), AVG(Value) AS avg_cpu FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) <= toDateTime({{ tend_unix }}) GROUP BY ALL

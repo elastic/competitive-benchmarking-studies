@@ -1,0 +1,19 @@
+<!--
+  Overlay applied on top of the stock clickhouse-server config.xml. Only
+  settings that actually deviate from ClickHouse's own built-in defaults are
+  listed here — see each comment for what the stock default is and why we
+  need to differ from it.
+-->
+<clickhouse>
+    <!-- Stock default is listen_host=::1/127.0.0.1 (loopback only), which
+         would make the server unreachable from outside the container. -->
+    <listen_host>0.0.0.0</listen_host>
+    <logger>
+        <!-- Stock default is "trace" — too noisy for a benchmark run. -->
+        <level>information</level>
+        <!-- Stock default is commented out (autodetect: console only if a
+             tty), which doesn't apply to a containerized, non-interactive
+             run — force it on so logs are visible via `docker logs`. -->
+        <console>1</console>
+    </logger>
+</clickhouse>

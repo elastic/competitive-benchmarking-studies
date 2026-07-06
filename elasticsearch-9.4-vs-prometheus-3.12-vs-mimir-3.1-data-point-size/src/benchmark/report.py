@@ -18,12 +18,13 @@ from benchmark.utils.time import format_duration
 # repo-root artifact directory, three levels up from here.
 RESULTS_DIR = Path(__file__).parent.parent.parent / "results"
 
-ENGINES = ["elasticsearch", "prometheus", "mimir"]
+ENGINES = ["elasticsearch", "prometheus", "mimir", "clickhouse"]
 
 ENGINE_COLORS = {
     "elasticsearch": "#00BFB3",  # Elastic teal
     "prometheus": "#E6522C",  # Prometheus orange
     "mimir": "#5794F2",  # Grafana blue
+    "clickhouse": "#FFCC01",  # ClickHouse yellow
 }
 
 
@@ -245,7 +246,9 @@ def main() -> None:
 
     results = load_results(RESULTS_DIR, ENGINES)
     if not results:
-        print("No results yet. Run: make elasticsearch  make prometheus  make mimir")
+        print(
+            "No results yet. Run: make elasticsearch  make prometheus  make mimir  make clickhouse"
+        )
         return
 
     print()

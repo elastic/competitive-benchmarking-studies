@@ -1,6 +1,6 @@
-# Elasticsearch 9.4.2 vs Prometheus 3.12 vs Mimir 3.1 — Data Point Storage Efficiency
+# Elasticsearch 9.4.2 vs Prometheus 3.12 vs Mimir 3.1 vs ClickHouse 26.5 — Data Point Storage Efficiency
 
-Measures bytes per data point for three time-series engines after ingesting identical OTel hostmetrics data.
+Measures bytes per data point for four time-series engines after ingesting identical OTel hostmetrics data.
 
 ## Results
 
@@ -9,6 +9,7 @@ Measures bytes per data point for three time-series engines after ingesting iden
 | Elasticsearch | 9.4.2   | 225,180,000 | 801.5 MB | 3.73     | 14m17s  | 262,480 |
 | Prometheus    | 3.12.0  | 225,180,000 | 828.9 MB | 3.86     | 10m27s  | 358,972 |
 | Mimir         | 3.1.1   | 225,180,000 | 838.7 MB | 3.91     | 10m45s  | 348,854 |
+| ClickHouse    | 26.5.1  | —           | —        | —        | —       | —       |
 
 Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, synthetic document IDs, doc value skippers (no inverted indices on dimensions), and trimmed sequence numbers — all applied automatically via the built-in OTel index template.
 
@@ -16,7 +17,7 @@ Elapsed/EPS measure the `metricsgenreceiver` ingestion run only (wall-clock time
 
 ### Query Benchmark Results
 
-Each engine ran the same 12 PromQL/ES|QL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all three engines.
+Each engine ran the same 12 PromQL/ES|QL/ClickHouse-SQL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all engines.
 
 | Query                                       | Elasticsearch (p50/p95/p99 ms) | Prometheus (p50/p95/p99 ms)   | Mimir (p50/p95/p99 ms)        |
 |----------------------------------------------|---------------------------------|--------------------------------|---------------------------------|
@@ -108,7 +109,7 @@ Per-engine breakdown with RPS and success rate:
 # Install Python deps + download metricsgenreceiver and vegeta into .bin/
 make setup
 
-# Run all three engines sequentially — ingests data, runs query benchmarks, and
+# Run all four engines sequentially — ingests data, runs query benchmarks, and
 # measures on-disk storage for each engine before tearing it down
 make run
 
@@ -117,6 +118,7 @@ make run
 make elasticsearch
 make prometheus
 make mimir
+make clickhouse
 
 # Display the storage comparison table + chart
 make report
@@ -145,14 +147,14 @@ src/benchmark/          # all Python code (installed as the "benchmark" package)
   query/                # queryset loading + vegeta execution
   disk_usage/           # per-engine storage measurement
   store/                # results/<engine>.json read/write
-  utils/                # per-engine HTTP helpers (es.py, prometheus.py, mimir.py) + generic helpers (fs.py, size.py, time.py)
+  utils/                # per-engine HTTP helpers (es.py, prometheus.py, mimir.py, clickhouse.py) + generic helpers (fs.py, size.py, time.py)
   scenarios.py          # resolves scenarios/<name>.yml + its queryset reference
   report.py             # cross-engine comparison table + chart
 scenarios/               # scenario definitions (<name>.yml)
 querysets/                # query definitions, referenced by name from a scenario
 deploy/
   docker/                 # docker-compose.yml
-  config/                 # per-engine runtime config (elasticsearch/, mimir.yaml, prometheus.yml)
+  config/                 # per-engine runtime config (elasticsearch/, mimir.yaml, prometheus.yml, clickhouse/)
 ```
 
 ## Benchmarks: scenarios & querysets
@@ -225,10 +227,12 @@ moment `.env` changes, which it does often as machine sizing gets tuned):
 
 | Variable | Description |
 |---|---|
-| `ES_VERSION` / `PROMETHEUS_VERSION` / `MIMIR_VERSION` | Engine image tags |
-| `ELASTICSEARCH_URL` / `PROMETHEUS_URL` / `MIMIR_URL` | Local docker compose ports |
+| `ES_VERSION` / `PROMETHEUS_VERSION` / `MIMIR_VERSION` / `CLICKHOUSE_VERSION` | Engine image tags |
+| `ELASTICSEARCH_URL` / `PROMETHEUS_URL` / `MIMIR_URL` / `CLICKHOUSE_URL` | Local docker compose ports (ClickHouse's is the HTTP interface — schema bootstrap + queries) |
 | `ES_HEAP` | Elasticsearch JVM heap — should be roughly half of `CONTAINER_MEMORY_LIMIT` |
 | `ES_DATA_STREAM` | Elasticsearch data stream/index name |
+| `CLICKHOUSE_NATIVE_ENDPOINT` | Native TCP endpoint the OTel `clickhouse` exporter writes to (ClickHouse has no OTLP receiver) |
+| `CLICKHOUSE_DATABASE` | ClickHouse database name (no auth — the container runs with the `default` user and no password) |
 | `CONTAINER_MEMORY_LIMIT` / `CONTAINER_CPU_LIMIT` | Resource limits applied to each engine's container |
 
 Scenario parameters (`scale`, `interval`, `start_now_minus`, `seed`, and which

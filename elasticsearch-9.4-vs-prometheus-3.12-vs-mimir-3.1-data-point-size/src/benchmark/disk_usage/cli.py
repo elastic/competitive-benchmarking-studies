@@ -17,8 +17,7 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help="Accepted for CLI-invocation uniformity with `load`/`query` "
         "(run_engine.py forwards the same --benchmark to all three) — "
-        "disk usage measurement doesn't depend on scenario parameters, "
-        "so this is unused.",
+        "disk usage measurement doesn't depend on scenario parameters.",
     )
     return parser.parse_args()
 
@@ -39,7 +38,7 @@ def _load_datapoints(results_file: str) -> int:
 
 
 def main() -> None:
-    _parse_args()
+    args = _parse_args()
 
     # Deferred past argument parsing (not at module level): engine_config
     # validates ENGINE at import time, which would otherwise make `--help`
@@ -50,7 +49,12 @@ def main() -> None:
     from benchmark.store.results import ResultStore
     from benchmark.utils.size import format_size
 
-    from .measure import measure_elasticsearch, measure_mimir, measure_prometheus
+    from .measure import (
+        measure_clickhouse,
+        measure_elasticsearch,
+        measure_mimir,
+        measure_prometheus,
+    )
 
     datapoints = _load_datapoints(RESULTS_FILE)
 
@@ -62,6 +66,10 @@ def main() -> None:
         count, size_bytes = measure_prometheus()
         bps = _bytes_per_dp_suffix(size_bytes, datapoints, "sample")
         print(f"\nPrometheus: {count:,} series  {format_size(size_bytes)}{bps}")
+    elif ENGINE == "clickhouse":
+        count, size_bytes = measure_clickhouse()
+        bps = _bytes_per_dp_suffix(size_bytes, datapoints, "row")
+        print(f"\nClickHouse: {count:,} rows  {format_size(size_bytes)}{bps}")
     else:
         count, size_bytes = measure_mimir()
         bps = _bytes_per_dp_suffix(size_bytes, datapoints, "dp")

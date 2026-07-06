@@ -10,7 +10,12 @@ import time
 
 import jinja2
 
-from benchmark.engine_config import DATA_DIR, ENGINE, OTLP_ENDPOINT
+from benchmark.engine_config import (
+    CLICKHOUSE_DATABASE,
+    DATA_DIR,
+    ENGINE,
+    EXPORT_ENDPOINT,
+)
 from benchmark.scenarios import BenchmarkScenario
 
 from .config import parse_duration_seconds
@@ -34,9 +39,10 @@ def otel_config(scenario: BenchmarkScenario, debug: bool = False) -> str:
         scale=scenario.scale,
         interval=scenario.interval,
         start_now_minus=scenario.start_now_minus,
-        otlp_endpoint=OTLP_ENDPOINT,
+        export_endpoint=EXPORT_ENDPOINT,
         compression=compression,
         debug=debug,
+        clickhouse_database=CLICKHOUSE_DATABASE,
     )
 
 
@@ -74,8 +80,10 @@ def run(scenario: BenchmarkScenario) -> tuple[int, float, float, int, int]:
 
     if debug:
         print("Running metricsgenreceiver (debug/nop — no data will be ingested) ...")
+    elif ENGINE == "clickhouse":
+        print(f"Running metricsgenreceiver → clickhouse native {EXPORT_ENDPOINT} ...")
     else:
-        print(f"Running metricsgenreceiver → {OTLP_ENDPOINT}/v1/metrics ...")
+        print(f"Running metricsgenreceiver → {EXPORT_ENDPOINT}/v1/metrics ...")
     print(f"Logs → {log_path}")
 
     with tempfile.TemporaryDirectory() as tmp:

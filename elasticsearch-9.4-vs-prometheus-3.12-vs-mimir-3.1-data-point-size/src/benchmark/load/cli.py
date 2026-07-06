@@ -31,7 +31,7 @@ def main() -> None:
         DATA_DIR,
         DATA_STREAM,
         ENGINE,
-        OTLP_ENDPOINT,
+        EXPORT_ENDPOINT,
         RESULTS_FILE,
         VERSION,
     )
@@ -49,7 +49,7 @@ def main() -> None:
         f"engine={ENGINE}  scale={scenario.scale}  interval={scenario.interval}  "
         f"window={scenario.start_now_minus}"
     )
-    print(f"target={OTLP_ENDPOINT}")
+    print(f"target={EXPORT_ENDPOINT}")
 
     datapoints, rate, elapsed, start_ts, end_ts = run(scenario)
 
