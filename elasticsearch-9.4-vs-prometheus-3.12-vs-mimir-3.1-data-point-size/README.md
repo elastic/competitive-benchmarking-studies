@@ -114,82 +114,25 @@ make run
 
 # Or run individually — each target starts the engine, ingests data, runs
 # queries, measures disk usage, then stops the engine before returning
-make elasticsearch    # ~15 min
-make prometheus       # ~15 min
-make mimir            # ~15 min
+make elasticsearch
+make prometheus
+make mimir
 
 # Display the storage comparison table + chart
 make report
 ```
 
-Each `make <engine>` target starts the container, delegates to `run-engine`
-(see [How It Works](#how-it-works)), then stops the container. To re-run just
-one step against a container that's still up, call the underlying commands
-directly:
-
-```bash
-# Re-run query benchmarks for one engine only
-uv run query --engine elasticsearch --benchmark duration_240m-query_200m-scale_100
-
-# Re-measure storage for one engine only — nothing is defaulted, so every
-# required variable must be set explicitly (`make <engine>` sets all of these
-# for you; this is what to export if calling disk-usage directly)
-ENGINE=elasticsearch ELASTICSEARCH_URL=http://localhost:9200 \
-  RESULTS_FILE=results/elasticsearch.json ES_DATA_STREAM=metrics-hostmetricsreceiver.otel-default \
-  uv run disk-usage --benchmark duration_240m-query_200m-scale_100
-```
-
-Each engine target stops its own container (`docker compose down <engine>`) once it finishes, so only one datastore is ever running at a time — this keeps the host's CPU/memory budget dedicated to whichever engine is currently being measured.
-
 ## How It Works
 
-1. **`make <engine>`** starts that engine's container, waits for it to
-   accept traffic, then runs `uv run run-engine <engine> --benchmark <name>`,
-   and stops the container afterward. Elasticsearch and Prometheus use
-   `docker compose up --wait` (blocking on a `healthcheck:`); Mimir's image
-   is a distroless single binary with no shell/wget/curl at all, so a
-   container-side healthcheck is impossible there — its target instead
-   polls `/ready` externally via `uv run wait-for` before proceeding.
+A full benchmark consists of the following steps for each engine sequentially:
 
-2. **`run-engine`** ([`src/benchmark/run_engine.py`](src/benchmark/run_engine.py))
-   is the single orchestrator for one engine's full cycle. It derives `ENGINE`
-   and `RESULTS_FILE` from its own `<engine>` argument (so the caller never
-   declares the engine twice), runs Elasticsearch-only bootstrap steps if
-   applicable, then invokes `load` → `query` → `disk-usage` as subprocesses,
-   forwarding `--benchmark` to each.
+   1. Wait for the engine's container to become available
+   2. **`load`** ([`src/benchmark/load/`](src/benchmark/load/)) the data via `metricsgenreceiver`
+   3. **`query`** ([`src/benchmark/query/`](src/benchmark/query/)) the data via `vegeta`
+   4. **`disk-usage`** ([`src/benchmark/disk_usage/`](src/benchmark/disk_usage/)) measure on-disk storage
+   5. **`report`** ([`src/benchmark/report.py`](src/benchmark/report.py)) prepare and print the comparison table and bar chart
 
-3. **Elasticsearch bootstrap** (skipped for Prometheus/Mimir): starts the
-   30-day trial license (required for synthetic `_source`), applies the
-   `metrics-otel@custom` component template and `metrics-policy` ILM policy
-   from [`deploy/config/elasticsearch/`](deploy/config/elasticsearch/), and recreates the
-   data stream so it picks up the new template settings.
-
-4. **`load`** ([`src/benchmark/load/`](src/benchmark/load/)) runs
-   `metricsgenreceiver` to generate synthetic OTel hostmetrics (scale × interval ×
-   window from the selected benchmark scenario — the default is 100 hosts × 1s
-   interval × 270 minutes × ~139 metrics/host ≈ 225M data points) and streams
-   them directly to the engine via OTLP/HTTP with protobuf + gzip — no
-   intermediate files.
-
-5. **`query`** ([`src/benchmark/query/`](src/benchmark/query/)) runs the
-   selected queryset's per-engine queries through `vegeta` and records
-   p50/p95/p99 latency, throughput, and success rate.
-
-6. **`disk-usage`** ([`src/benchmark/disk_usage/`](src/benchmark/disk_usage/))
-   measures on-disk storage per engine:
-   - **Elasticsearch**: `_forcemerge` to 1 segment, then `_disk_usage` for exact byte counts.
-   - **Prometheus**: `POST /api/v1/admin/tsdb/snapshot` → measure snapshot directory size (blocks only, excludes WAL). Matches the [methodology used by the Prometheus team](https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh).
-   - **Mimir**: `POST /ingester/flush` to force block compaction, then polls block count + directory size until two consecutive samples match (`deletion_delay=0s` only marks obsolete blocks for removal — the actual delete happens on the compactor's next `cleanup_interval`, so measuring too early overcounts) before measuring the blocks directory.
-
-7. **`report`** ([`src/benchmark/report.py`](src/benchmark/report.py)) reads
-   `results/<engine>.json` for each engine and prints the comparison table +
-   bar chart.
-
-Every step reads the same required environment: `ENGINE` (one of
-`elasticsearch`/`prometheus`/`mimir`), `RESULTS_FILE`, and the connection URL
-matching the active engine — see [`src/benchmark/engine_config.py`](src/benchmark/engine_config.py).
-Nothing is silently defaulted: if a required variable is missing, the command
-aborts immediately with a clear message rather than guessing.
+Each engine target stops its own container once it finishes, so only one datastore is ever running at a time — this keeps the host's CPU/memory budget dedicated to whichever engine is currently being measured.
 
 ## Project Layout
 
