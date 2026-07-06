@@ -126,11 +126,12 @@ make report
 
 A full benchmark consists of the following steps for each engine sequentially:
 
-   1. Wait for the engine's container to become available
+   1. Start & wait for the engine's container to become available
    2. **`load`** ([`src/benchmark/load/`](src/benchmark/load/)) the data via `metricsgenreceiver`
    3. **`query`** ([`src/benchmark/query/`](src/benchmark/query/)) the data via `vegeta`
    4. **`disk-usage`** ([`src/benchmark/disk_usage/`](src/benchmark/disk_usage/)) measure on-disk storage
-   5. **`report`** ([`src/benchmark/report.py`](src/benchmark/report.py)) prepare and print the comparison table and bar chart
+
+Then, **`report`** ([`src/benchmark/report.py`](src/benchmark/report.py)) prepares and prints the comparison table and bar chart for all datastore engines.
 
 Each engine target stops its own container once it finishes, so only one datastore is ever running at a time — this keeps the host's CPU/memory budget dedicated to whichever engine is currently being measured.
 
