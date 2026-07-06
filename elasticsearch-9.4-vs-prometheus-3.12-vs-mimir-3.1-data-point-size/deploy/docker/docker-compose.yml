@@ -31,7 +31,7 @@ services:
       - "--web.enable-admin-api"
       #- "--enable-feature=otlp-deltatocumulative"
     volumes:
-      - ../../config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../../data/prometheus:/prometheus
     ports:
       - "9090:9090"
@@ -53,15 +53,21 @@ services:
     command:
       - "--config.file=/etc/mimir/mimir.yaml"
     volumes:
-      - ../../config/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      - ../config/mimir.yaml:/etc/mimir/mimir.yaml:ro
       - ../../data/mimir:/tmp/mimir-data
     ports:
       - "8080:8080"
+    # No healthcheck: the grafana/mimir image is a distroless-style single
+    # binary — confirmed via `docker run --entrypoint sh ...` that there is
+    # no shell, wget, or curl at all, so a CMD/CMD-SHELL healthcheck can
+    # never succeed here. Readiness is polled externally instead — see the
+    # Makefile's `mimir` target (`uv run wait-for`).
     deploy:
       resources:
         limits:
           memory: ${CONTAINER_MEMORY_LIMIT:-12g}
           cpus: '${CONTAINER_CPU_LIMIT:-12}'
+
 volumes:
   esdata01:
     driver: local

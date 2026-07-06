@@ -92,6 +92,7 @@ targets:
           {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS RATE(`metrics.system.cpu.time`) BY TBUCKET(1h)"}
 
 
+
   prometheus:
     target:
       base_url: "http://localhost:9090"

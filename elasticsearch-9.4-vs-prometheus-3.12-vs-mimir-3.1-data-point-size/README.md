@@ -97,7 +97,7 @@ Per-engine breakdown with RPS and success rate:
 
 ## Prerequisites
 
-- Docker (with at least 6 GB memory allocated)
+- Docker (memory allocated to Docker Desktop/engine must be at least `.env`'s `CONTAINER_MEMORY_LIMIT`, since one engine's container runs at a time)
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
 - `curl` and `tar` (pre-installed on macOS and most Linux distros)
@@ -109,62 +109,131 @@ Per-engine breakdown with RPS and success rate:
 make setup
 
 # Run all three engines sequentially — ingests data, runs query benchmarks, and
-# measures on-disk storage for each engine before tearing it down (~45 min total)
+# measures on-disk storage for each engine before tearing it down
 make run
 
 # Or run individually — each target starts the engine, ingests data, runs
 # queries, measures disk usage, then stops the engine before returning
-make elasticsearch    # ~15 min
-make prometheus       # ~15 min
-make mimir            # ~15 min
+make elasticsearch
+make prometheus
+make mimir
 
-# Display storage comparison
+# Display the storage comparison table + chart
 make report
-
-# Re-run query benchmarks standalone (requires services to still be running)
-make query            # all three engines
-make query-es         # Elasticsearch only
-make query-prometheus # Prometheus only
-make query-mimir      # Mimir only
-
-# Re-measure on-disk storage standalone, without re-ingesting
-# (requires services to still be running)
-make disk-usage            # all three engines
-make disk-usage-es         # Elasticsearch only
-make disk-usage-prometheus # Prometheus only
-make disk-usage-mimir      # Mimir only
 ```
-
-Each engine target stops its own container (`docker compose down <engine>`) once it finishes, so only one datastore is ever running at a time — this keeps the host's CPU/memory budget dedicated to whichever engine is currently being measured.
 
 ## How It Works
 
-1. **Data generation**: `metricsgenreceiver` generates synthetic OTel hostmetrics (100 hosts × 270 minutes × ~139 metrics/host × 1s interval ≈ 225M data points) and streams directly to each engine via OTLP/HTTP with protobuf + gzip — no intermediate files.
+A full benchmark consists of the following steps for each engine sequentially:
 
-2. **Elasticsearch setup**: The built-in `metrics-otel@template` index template activates automatically. `metrics-otel@custom` overrides replicas/shards/look_back_time. Trial license enables synthetic `_source`.
+   1. Start & wait for the engine's container to become available
+   2. **`load`** ([`src/benchmark/load/`](src/benchmark/load/)) the data via `metricsgenreceiver`
+   3. **`query`** ([`src/benchmark/query/`](src/benchmark/query/)) the data via `vegeta`
+   4. **`disk-usage`** ([`src/benchmark/disk_usage/`](src/benchmark/disk_usage/)) measure on-disk storage
 
-3. **Storage measurement** (`disk_usage/measure.py`, run via `make disk-usage*`):
-   - **Elasticsearch**: `_forcemerge` to 1 segment, then `POST _disk_usage` (`run_expensive_tasks=true`) for an exact, per-shard on-disk size
-   - **Prometheus**: `POST /api/v1/admin/tsdb/snapshot` → measure snapshot directory size (blocks only, excludes WAL) via `docker exec du -sb`. Matches the [methodology used by the Prometheus team](https://github.com/gouthamve/prom-elastic-benchmark/blob/632ae80262bf1bb6fc44aa89480307ef7576f51c/scripts/measure-prom.sh).
-   - **Mimir**: `POST /ingester/flush` to force block compaction, then measure the `blocks/` directory size on the host (excludes `tsdb/`/`tsdb-sync/` WAL so it's comparable to the Prometheus snapshot)
+Then, **`report`** ([`src/benchmark/report.py`](src/benchmark/report.py)) prepares and prints the comparison table and bar chart for all datastore engines.
+
+Each engine target stops its own container once it finishes, so only one datastore is ever running at a time — this keeps the host's CPU/memory budget dedicated to whichever engine is currently being measured.
+
+## Project Layout
+
+```
+src/benchmark/          # all Python code (installed as the "benchmark" package)
+  engine_config.py      # ENGINE validation + per-engine connection config
+  run_engine.py         # orchestrates bootstrap + load/query/disk-usage for one engine
+  load/                 # metricsgenreceiver config rendering + execution
+  query/                # queryset loading + vegeta execution
+  disk_usage/           # per-engine storage measurement
+  store/                # results/<engine>.json read/write
+  utils/                # per-engine HTTP helpers (es.py, prometheus.py, mimir.py) + generic helpers (fs.py, size.py, time.py)
+  scenarios.py          # resolves scenarios/<name>.yml + its queryset reference
+  report.py             # cross-engine comparison table + chart
+scenarios/               # scenario definitions (<name>.yml)
+querysets/                # query definitions, referenced by name from a scenario
+deploy/
+  docker/                 # docker-compose.yml
+  config/                 # per-engine runtime config (elasticsearch/, mimir.yaml, prometheus.yml)
+```
+
+## Benchmarks: scenarios & querysets
+
+A **benchmark** (`scenarios/<name>.yml`) is the ingest scenario — how much
+data to generate and which queryset to run against it:
+
+```yaml
+name: duration_240m-query_200m-scale_100
+description: Bytes/datapoint comparison, 100 hosts, 1s interval, 270m window
+
+ingest:
+  scale: 100             # simulated hosts
+  interval: 1s            # metric emission interval
+  start_now_minus: 270m   # data window (historical replay)
+  seed: 123               # reproducibility seed
+
+queryset: default         # → querysets/default.yml
+```
+
+A **queryset** (`querysets/<name>.yml`) is the set of queries run against
+each engine after ingest — global `defaults` (vegeta rate/duration/workers,
+with per-query overrides) plus a `targets.<engine>` block per engine, each
+with its own `target.base_url`/`method`/`path` and a list of `queries`
+(Jinja2-templated bodies with `tend`/`tstart`/`now` and any custom
+`queries_runtime_params` available). See [`querysets/default.yml`](querysets/default.yml)
+for the full schema in practice.
+
+Everything is resolved by [`src/benchmark/scenarios.py`](src/benchmark/scenarios.py)'s
+`load_benchmark(name)`, which every command (`load`, `query`, `disk-usage`,
+`run-engine`) takes as `--benchmark <name>` (required — there's no default
+baked into the code; `Makefile`'s `BENCHMARK ?= duration_240m-query_200m-scale_100`
+is the one place a convenience default lives).
+
+**To run an existing benchmark under a different name:**
+
+```bash
+BENCHMARK=<name> make elasticsearch
+# or directly:
+uv run load --benchmark <name>
+```
+
+**To add a new benchmark scenario** (e.g. a higher-cardinality run):
+
+1. Copy an existing `scenarios/*.yml`, give it a new `name` matching the filename, and adjust `ingest.*`.
+2. Point `queryset:` at an existing queryset name to reuse its queries, or add a new `querysets/<name>.yml` if the new scenario needs different queries.
+3. Run it: `BENCHMARK=<new-name> make elasticsearch` (or any engine).
+
+**To add or change queries** for an existing queryset, edit its
+`targets.<engine>.queries` list directly — no other file needs to change,
+since every `scenarios/*.yml` referencing that queryset picks up the new
+queries automatically.
+
+## Adding a new engine
+
+1. **`src/benchmark/engine_config.py`** — add an entry to `_ENGINES` (`url_env`, `otlp_path`, `version_env`).
+2. **`src/benchmark/utils/<engine>.py`** — new module with the engine's raw HTTP calls (mirror `utils/prometheus.py`/`utils/mimir.py`'s shape); **`src/benchmark/disk_usage/measure.py`** — add `measure_<engine>()` and wire it into `disk_usage/cli.py`'s dispatch.
+3. **`deploy/docker/docker-compose.yml`** — add the service, plus its config file under **`deploy/config/`**. Add a `healthcheck:` if the image has a shell and `wget`/`curl` (verify with `docker run --rm --entrypoint sh <image> -c 'wget --version'` before relying on it — don't assume; Mimir's image has neither). If it does, the Makefile target can use `docker compose up -d --wait <engine>`; if not, mirror Mimir's pattern instead (`docker compose up -d <engine>` + `uv run wait-for <ready-url>`).
+4. **`Makefile`** — add a target mirroring `elasticsearch`/`prometheus`/`mimir`; **`.env`** — add the engine's version pin and connection URL.
+5. **`querysets/*.yml`** — add a `targets.<engine>` block with equivalent queries.
+6. **`src/benchmark/report.py`** — add the engine to `ENGINES` and `ENGINE_COLORS`.
+7. If the engine needs bootstrap steps analogous to Elasticsearch's (license/template/ILM), add a `_bootstrap_<engine>()` to **`src/benchmark/run_engine.py`** and call it from `main()`.
 
 ## Configuration
 
-Edit `.env` to adjust:
+Engine connection/version/resource details live in `.env` — see that file
+directly for current values (deliberately not repeated here as a table,
+since a hardcoded copy of `.env`'s values in this README would drift the
+moment `.env` changes, which it does often as machine sizing gets tuned):
 
-| Variable | Default | Description |
-|---|---|---|
-| `ES_VERSION` | `9.4.2` | Elasticsearch image tag |
-| `PROMETHEUS_VERSION` | `3.12.0` | Prometheus image tag |
-| `MIMIR_VERSION` | `3.1.0` | Mimir image tag |
-| `SCALE` | `100` | Simulated hosts |
-| `INTERVAL` | `1s` | Metric emission interval |
-| `START_NOW_MINUS` | `270m` | Data window (historical replay) |
-| `ES_HEAP` | `6g` | Elasticsearch JVM heap — set to half of `CONTAINER_MEMORY_LIMIT` |
-| `CONTAINER_MEMORY_LIMIT` | `12g` | Memory limit applied to each datastore container (Elasticsearch, Prometheus, Mimir) |
-| `CONTAINER_CPU_LIMIT` | `12` | CPU limit applied to each datastore container |
-| `METRICSGENRECEIVER_VERSION` | `1.0.7` | Version of the synthetic data generator binary |
-| `VEGETA_VERSION` | `12.12.0` | Version of the vegeta load-testing binary used for query benchmarks |
+| Variable | Description |
+|---|---|
+| `ES_VERSION` / `PROMETHEUS_VERSION` / `MIMIR_VERSION` | Engine image tags |
+| `ELASTICSEARCH_URL` / `PROMETHEUS_URL` / `MIMIR_URL` | Local docker compose ports |
+| `ES_HEAP` | Elasticsearch JVM heap — should be roughly half of `CONTAINER_MEMORY_LIMIT` |
+| `ES_DATA_STREAM` | Elasticsearch data stream/index name |
+| `CONTAINER_MEMORY_LIMIT` / `CONTAINER_CPU_LIMIT` | Resource limits applied to each engine's container |
+
+Scenario parameters (`scale`, `interval`, `start_now_minus`, `seed`, and which
+queryset to run) live in `scenarios/*.yml` instead — see
+[Benchmarks: scenarios & querysets](#benchmarks-scenarios--querysets) above.
 
 ## Methodology
 
