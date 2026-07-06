@@ -148,9 +148,9 @@ src/benchmark/          # all Python code (installed as the "benchmark" package)
   disk_usage/           # per-engine storage measurement
   store/                # results/<engine>.json read/write
   utils/                # per-engine HTTP helpers (es.py, prometheus.py, mimir.py, clickhouse.py) + generic helpers (fs.py, size.py, time.py)
-  scenarios.py          # resolves scenarios/<name>.yml + its queryset reference (incl. ClickHouse's inline schema)
+  scenarios.py          # resolves scenarios/<name>.yml + its queryset reference
   report.py             # cross-engine comparison table + chart
-scenarios/               # scenario definitions (<name>.yml) — ClickHouse's table DDL lives inline here, under `clickhouse.schema`
+scenarios/               # scenario definitions (<name>.yml)
 querysets/                # query definitions, referenced by name from a scenario
 deploy/
   docker/                 # docker-compose.yml
