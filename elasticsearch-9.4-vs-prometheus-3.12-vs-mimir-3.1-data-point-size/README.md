@@ -114,9 +114,9 @@ make run
 
 # Or run individually — each target starts the engine, ingests data, runs
 # queries, measures disk usage, then stops the engine before returning
-make elasticsearch
-make prometheus
-make mimir
+make elasticsearch    # ~15 min
+make prometheus       # ~15 min
+make mimir            # ~15 min
 
 # Display the storage comparison table + chart
 make report
