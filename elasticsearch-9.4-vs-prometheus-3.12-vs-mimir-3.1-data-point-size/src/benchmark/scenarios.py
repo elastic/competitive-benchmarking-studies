@@ -2,7 +2,7 @@
 config object, following its `queryset` reference into querysets/<name>.yml.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -22,6 +22,13 @@ class BenchmarkScenario:
     start_now_minus: str
     seed: int
     queryset_path: Path
+    # ClickHouse only: inline `CREATE TABLE %s (...)` DDL per table (%s is
+    # substituted with `<database>.<table>` at bootstrap time), kept in the
+    # scenario file rather than fetched from an external URL at run time so
+    # the schema a result was measured against is pinned and reviewable
+    # alongside the scenario itself.
+    clickhouse_database: str = "default"
+    clickhouse_schema: dict[str, str] = field(default_factory=dict)
 
 
 def load_benchmark(name: str) -> BenchmarkScenario:
@@ -35,6 +42,7 @@ def load_benchmark(name: str) -> BenchmarkScenario:
         raise FileNotFoundError(f"Benchmark {name!r} not found at {path}") from None
 
     ingest = data["ingest"]
+    clickhouse = data.get("clickhouse", {})
     return BenchmarkScenario(
         name=data.get("name", name),
         scale=ingest["scale"],
@@ -42,4 +50,6 @@ def load_benchmark(name: str) -> BenchmarkScenario:
         start_now_minus=ingest["start_now_minus"],
         seed=ingest["seed"],
         queryset_path=_QUERYSETS_DIR / f"{data['queryset']}.yml",
+        clickhouse_database=clickhouse.get("database", "default"),
+        clickhouse_schema=clickhouse.get("schema", {}),
     )

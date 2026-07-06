@@ -1,0 +1,21 @@
+<!--
+  Overlay applied on top of the stock clickhouse-server users.xml. Only
+  settings that actually deviate from ClickHouse's own built-in defaults are
+  listed here — see each comment for what the stock default is and why we
+  need to differ from it.
+-->
+<clickhouse>
+    <users>
+        <default>
+            <!-- Not a stock default: no CLICKHOUSE_PASSWORD env var (see
+                 docker-compose.yml) makes the image's entrypoint write a
+                 users.d/default-user.xml that restricts the passwordless
+                 default user to loopback-only connections. Since the
+                 collector/query/disk-usage steps connect from outside the
+                 container, this counteracts that restriction. -->
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+        </default>
+    </users>
+</clickhouse>

@@ -23,9 +23,26 @@ processors:
 exporters:
   {% if debug %}
   nop:
+  {% elif engine == "clickhouse" %}
+  clickhouse:
+    endpoint: {{ export_endpoint }}
+    database: {{ clickhouse_database }}
+    compress: lz4
+    metrics_table_name: otel_metrics
+    create_schema: false
+    timeout: 10s
+    sending_queue:
+      enabled: true
+      block_on_overflow: true
+      num_consumers: 25
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
   {% else %}
   otlphttp/{{ engine }}:
-    endpoint: {{ otlp_endpoint }}
+    endpoint: {{ export_endpoint }}
     {% if compression %}
     compression: gzip
     {% endif %}
@@ -57,6 +74,8 @@ service:
       exporters:
         {% if debug %}
         [nop]
+        {% elif engine == "clickhouse" %}
+        [clickhouse]
         {% else %}
         [otlphttp/{{ engine }}]
         {% endif %}

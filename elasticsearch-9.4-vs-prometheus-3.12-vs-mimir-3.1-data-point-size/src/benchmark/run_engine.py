@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Bootstrap (Elasticsearch only) + ingest/query/disk-usage sequence for one engine.
+"""Bootstrap (Elasticsearch/ClickHouse only) + ingest/query/disk-usage
+sequence for one engine.
 
-Usage: uv run run-engine <elasticsearch|prometheus|mimir> [--benchmark <name>]
+Usage: uv run run-engine <elasticsearch|prometheus|mimir|clickhouse> [--benchmark <name>]
 
 Derives ENGINE and RESULTS_FILE from the positional engine argument and sets
 them in the environment for the load/query/disk-usage subprocesses below —
 the caller only needs to supply the connection URLs (ELASTICSEARCH_URL/
-PROMETHEUS_URL/MIMIR_URL), which belong in .env since they're static "how
-this machine is set up" details, not per-run parameters.
+PROMETHEUS_URL/MIMIR_URL/CLICKHOUSE_URL), which belong in .env since they're
+static "how this machine is set up" details, not per-run parameters.
 """
 
 import argparse
@@ -15,6 +16,8 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
+from benchmark.scenarios import BenchmarkScenario
 
 # This file lives at <repo_root>/src/benchmark/run_engine.py — deploy/config/
 # is a repo-root directory, three levels up from here.
@@ -29,7 +32,9 @@ def _run(args: list[str]) -> None:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("engine", choices=["elasticsearch", "prometheus", "mimir"])
+    parser.add_argument(
+        "engine", choices=["elasticsearch", "prometheus", "mimir", "clickhouse"]
+    )
     parser.add_argument("--benchmark", required=True)
     return parser.parse_args()
 
@@ -57,6 +62,26 @@ def _bootstrap_elasticsearch() -> None:
     es_recreate_data_stream(DATA_STREAM)
 
 
+def _bootstrap_clickhouse(scenario: BenchmarkScenario) -> None:
+    # Imported here, not at module level: engine_config validates ENGINE at
+    # import time, and utils.clickhouse imports engine_config transitively,
+    # so this must run after main() has set ENGINE/RESULTS_FILE below.
+    from benchmark.engine_config import CLICKHOUSE_DATABASE
+    from benchmark.utils.clickhouse import ch_create_table, ch_drop_table
+
+    if not scenario.clickhouse_schema:
+        sys.exit(
+            f"No clickhouse.schema in scenario {scenario.name!r} — "
+            "see scenarios/*.yml for the expected shape"
+        )
+
+    for table_name, ddl_template in scenario.clickhouse_schema.items():
+        table = f"{CLICKHOUSE_DATABASE}.{table_name}"
+        ch_drop_table(table)
+        ch_create_table(table, ddl_template)
+    print(f"✓ ClickHouse schema applied ({len(scenario.clickhouse_schema)} tables)")
+
+
 def main() -> None:
     args = _parse_args()
 
@@ -69,6 +94,10 @@ def main() -> None:
     if args.engine == "elasticsearch":
         _bootstrap_elasticsearch()
         load_extra_args.append("--wait-for-merges")
+    elif args.engine == "clickhouse":
+        from benchmark.scenarios import load_benchmark
+
+        _bootstrap_clickhouse(load_benchmark(args.benchmark))
 
     print("Ingesting data...")
     _run(["uv", "run", "load", "--benchmark", args.benchmark, *load_extra_args])

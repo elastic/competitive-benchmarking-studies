@@ -68,6 +68,34 @@ services:
           memory: ${CONTAINER_MEMORY_LIMIT:-12g}
           cpus: '${CONTAINER_CPU_LIMIT:-12}'
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION}
+    environment:
+      # No CLICKHOUSE_USER/CLICKHOUSE_PASSWORD: the image's entrypoint only
+      # provisions a password-protected default user when one is set, so
+      # leaving these unset keeps the `default` user open (no auth), as
+      # configured in users.d.xml.
+      - CLICKHOUSE_DB=${CLICKHOUSE_DATABASE:-default}
+    volumes:
+      - ../config/clickhouse/config.d.xml:/etc/clickhouse-server/config.d/benchbuilder.xml:ro
+      - ../config/clickhouse/users.d.xml:/etc/clickhouse-server/users.d/benchbuilder_users.xml:ro
+      - clickhousedata01:/var/lib/clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --inet4-only --no-verbose --tries=1 -O - http://localhost:8123/ping | grep 'Ok.'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: ${CONTAINER_MEMORY_LIMIT:-12g}
+          cpus: '${CONTAINER_CPU_LIMIT:-12}'
+
 volumes:
   esdata01:
+    driver: local
+  clickhousedata01:
     driver: local

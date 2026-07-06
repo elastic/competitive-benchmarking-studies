@@ -19,6 +19,15 @@ _ENGINES = {
         "otlp_path": "/otlp",
         "version_env": "MIMIR_VERSION",
     },
+    "clickhouse": {
+        # ClickHouse has no OTLP endpoint — the OTel `clickhouse` exporter
+        # writes over the native TCP protocol, not HTTP/OTLP. url_env is the
+        # HTTP interface (schema bootstrap + queries); native_endpoint_env is
+        # what the exporter actually connects to.
+        "url_env": "CLICKHOUSE_URL",
+        "native_endpoint_env": "CLICKHOUSE_NATIVE_ENDPOINT",
+        "version_env": "CLICKHOUSE_VERSION",
+    },
 }
 
 
@@ -39,9 +48,18 @@ if ENGINE not in _ENGINES:
 _info = _ENGINES[ENGINE]
 RESULTS_FILE = _require("RESULTS_FILE")
 BASE_URL = _require(_info["url_env"])
-OTLP_ENDPOINT = BASE_URL + _info["otlp_path"]
 VERSION = os.environ.get(_info["version_env"], "?")
 DATA_STREAM = _require("ES_DATA_STREAM") if ENGINE == "elasticsearch" else None
+
+if ENGINE == "clickhouse":
+    # The exporter connects over the native protocol, not BASE_URL (HTTP).
+    # No auth: the benchmark's ClickHouse container runs with the `default`
+    # user and no password (see docker-compose.yml).
+    EXPORT_ENDPOINT = _require(_info["native_endpoint_env"])
+    CLICKHOUSE_DATABASE = os.environ.get("CLICKHOUSE_DATABASE", "default")
+else:
+    EXPORT_ENDPOINT = BASE_URL + _info["otlp_path"]
+    CLICKHOUSE_DATABASE = None
 
 # This file lives at <repo_root>/src/benchmark/engine_config.py — data/ is a
 # repo-root artifact directory, three levels up from here.
