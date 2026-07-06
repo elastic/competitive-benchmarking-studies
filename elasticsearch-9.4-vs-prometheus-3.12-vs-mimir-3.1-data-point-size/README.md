@@ -17,7 +17,7 @@ Elapsed/EPS measure the `metricsgenreceiver` ingestion run only (wall-clock time
 
 ### Query Benchmark Results
 
-Each engine ran the same 12 PromQL/ES|QL/ClickHouse-SQL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all engines. (ClickHouse results pending — see note above.)
+Each engine ran the same 12 PromQL/ES|QL/ClickHouse-SQL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all engines.
 
 | Query                                       | Elasticsearch (p50/p95/p99 ms) | Prometheus (p50/p95/p99 ms)   | Mimir (p50/p95/p99 ms)        |
 |----------------------------------------------|---------------------------------|--------------------------------|---------------------------------|
