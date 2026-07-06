@@ -17,9 +17,7 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help="Accepted for CLI-invocation uniformity with `load`/`query` "
         "(run_engine.py forwards the same --benchmark to all three) — "
-        "disk usage measurement doesn't depend on scenario parameters for "
-        "most engines, except ClickHouse, which reads clickhouse.schema "
-        "from the scenario to know which tables to measure.",
+        "disk usage measurement doesn't depend on scenario parameters.",
     )
     return parser.parse_args()
 
@@ -48,7 +46,6 @@ def main() -> None:
     # handle it. `.measure` also imports engine_config transitively, so it
     # has to move here too.
     from benchmark.engine_config import ENGINE, RESULTS_FILE
-    from benchmark.scenarios import load_benchmark
     from benchmark.store.results import ResultStore
     from benchmark.utils.size import format_size
 
@@ -70,7 +67,7 @@ def main() -> None:
         bps = _bytes_per_dp_suffix(size_bytes, datapoints, "sample")
         print(f"\nPrometheus: {count:,} series  {format_size(size_bytes)}{bps}")
     elif ENGINE == "clickhouse":
-        count, size_bytes = measure_clickhouse(load_benchmark(args.benchmark))
+        count, size_bytes = measure_clickhouse()
         bps = _bytes_per_dp_suffix(size_bytes, datapoints, "row")
         print(f"\nClickHouse: {count:,} rows  {format_size(size_bytes)}{bps}")
     else:

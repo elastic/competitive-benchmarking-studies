@@ -3,8 +3,12 @@
 import os
 import time
 
-from benchmark.engine_config import CLICKHOUSE_DATABASE, DATA_DIR, DATA_STREAM
-from benchmark.scenarios import BenchmarkScenario
+from benchmark.engine_config import (
+    CLICKHOUSE_DATABASE,
+    CLICKHOUSE_TABLES,
+    DATA_DIR,
+    DATA_STREAM,
+)
 from benchmark.utils.clickhouse import ch_optimize_table, ch_table_stats
 from benchmark.utils.es import es_disk_usage, es_doc_count, es_forcemerge
 from benchmark.utils.fs import dir_size
@@ -73,13 +77,13 @@ def measure_mimir() -> tuple[int, int]:
     return series, size_bytes
 
 
-def measure_clickhouse(scenario: BenchmarkScenario) -> tuple[int, int]:
+def measure_clickhouse() -> tuple[int, int]:
     """OPTIMIZE (merge) each metrics table down to one part, then measure
     exact on-disk size via system.parts.
 
     Returns (rows, size_bytes).
     """
-    tables = list(scenario.clickhouse_schema)
+    tables = list(CLICKHOUSE_TABLES)
     for table_name in tables:
         print(f"Merging {table_name} ...", flush=True)
         ch_optimize_table(f"{CLICKHOUSE_DATABASE}.{table_name}")

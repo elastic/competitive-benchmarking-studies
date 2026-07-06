@@ -4,6 +4,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 from benchmark.engine_config import BASE_URL
 
@@ -48,14 +49,15 @@ def ch_query_json(sql: str) -> list[dict]:
     return [json.loads(line) for line in text.splitlines() if line]
 
 
-def ch_drop_table(table: str) -> None:
-    ch_execute(f"DROP TABLE IF EXISTS {table}")
+def ch_execute_sql_file(path: Path) -> None:
+    """Split path's contents on `;`-terminated statements and execute each
+    one in file order."""
+    for stmt in path.read_text().split(";"):
+        stmt = stmt.strip()
+        if not stmt:
+            continue
 
-
-def ch_create_table(table: str, ddl_template: str) -> None:
-    """ddl_template is a `CREATE TABLE %s (...)` statement; %s is substituted
-    with the fully-qualified table name."""
-    ch_execute(ddl_template.replace("%s", table))
+        ch_execute(stmt + ";")
 
 
 def ch_optimize_table(table: str) -> None:

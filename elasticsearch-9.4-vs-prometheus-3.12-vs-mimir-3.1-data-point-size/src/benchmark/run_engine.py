@@ -17,8 +17,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from benchmark.scenarios import BenchmarkScenario
-
 # This file lives at <repo_root>/src/benchmark/run_engine.py — deploy/config/
 # is a repo-root directory, three levels up from here.
 _ROOT = Path(__file__).parent.parent.parent
@@ -62,24 +60,14 @@ def _bootstrap_elasticsearch() -> None:
     es_recreate_data_stream(DATA_STREAM)
 
 
-def _bootstrap_clickhouse(scenario: BenchmarkScenario) -> None:
+def _bootstrap_clickhouse() -> None:
     # Imported here, not at module level: engine_config validates ENGINE at
     # import time, and utils.clickhouse imports engine_config transitively,
     # so this must run after main() has set ENGINE/RESULTS_FILE below.
-    from benchmark.engine_config import CLICKHOUSE_DATABASE
-    from benchmark.utils.clickhouse import ch_create_table, ch_drop_table
+    from benchmark.utils.clickhouse import ch_execute_sql_file
 
-    if not scenario.clickhouse_schema:
-        sys.exit(
-            f"No clickhouse.schema in scenario {scenario.name!r} — "
-            "see scenarios/*.yml for the expected shape"
-        )
-
-    for table_name, ddl_template in scenario.clickhouse_schema.items():
-        table = f"{CLICKHOUSE_DATABASE}.{table_name}"
-        ch_drop_table(table)
-        ch_create_table(table, ddl_template)
-    print(f"✓ ClickHouse schema applied ({len(scenario.clickhouse_schema)} tables)")
+    ch_execute_sql_file(_ROOT / "deploy/config/clickhouse/schema.sql")
+    print("✓ ClickHouse schema applied")
 
 
 def main() -> None:
@@ -95,9 +83,7 @@ def main() -> None:
         _bootstrap_elasticsearch()
         load_extra_args.append("--wait-for-merges")
     elif args.engine == "clickhouse":
-        from benchmark.scenarios import load_benchmark
-
-        _bootstrap_clickhouse(load_benchmark(args.benchmark))
+        _bootstrap_clickhouse()
 
     print("Ingesting data...")
     _run(["uv", "run", "load", "--benchmark", args.benchmark, *load_extra_args])

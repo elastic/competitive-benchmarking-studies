@@ -57,9 +57,17 @@ if ENGINE == "clickhouse":
     # user and no password (see docker-compose.yml).
     EXPORT_ENDPOINT = _require(_info["native_endpoint_env"])
     CLICKHOUSE_DATABASE = os.environ.get("CLICKHOUSE_DATABASE", "default")
+    CLICKHOUSE_TABLES = (
+        "otel_metrics_gauge",
+        "otel_metrics_sum",
+        "otel_metrics_histogram",
+        "otel_metrics_exponential_histogram",
+        "otel_metrics_summary",
+    )
 else:
     EXPORT_ENDPOINT = BASE_URL + _info["otlp_path"]
     CLICKHOUSE_DATABASE = None
+    CLICKHOUSE_TABLES = None
 
 # This file lives at <repo_root>/src/benchmark/engine_config.py — data/ is a
 # repo-root artifact directory, three levels up from here.
