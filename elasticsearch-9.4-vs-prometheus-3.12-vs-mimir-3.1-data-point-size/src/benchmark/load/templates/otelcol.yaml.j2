@@ -12,7 +12,7 @@ receivers:
         scale: {{ scale }}
 
 processors:
-
+  {% if uses_transform %}
   transform:
     metric_statements:
   {% if drop_host_ip_mac %}
@@ -25,6 +25,7 @@ processors:
       - context: datapoint
         statements:
           - merge_maps(datapoint.attributes, resource.attributes, "insert")
+  {% endif %}
   {% endif %}
 
   batch:
