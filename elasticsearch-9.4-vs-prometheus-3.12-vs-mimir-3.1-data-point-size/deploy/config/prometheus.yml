@@ -6,10 +6,26 @@ storage:
   tsdb:
     out_of_order_time_window: 270m
 
-#otlp:
-#  translation_strategy: NoTranslation
+otlp:
+  # Promote OTel resource attributes to labels on ingested series so they are
+  # queryable alongside the metric's own data-point attributes.
+  # See: https://prometheus.io/docs/guides/opentelemetry/#promoting-resource-attributes
+  promote_resource_attributes:
+    - host.name
+    - host.arch
+    - host.ip
+    - host.mac
+    - host.cpu.vendor.id
+    - host.cpu.family
+    - host.cpu.model.id
+    - host.cpu.model.name
+    - host.cpu.stepping
+    - host.cpu.cache.l2.size
+    - os.type
+    - os.description
 
 # No scrape_configs — self-scraping would advance the TSDB head to "now",
 # making all historical replay data (start_now_minus=270m) appear out-of-order
 # and get rejected at the boundary. Without self-scraping, the TSDB head starts
 # empty and metricsgenreceiver's data is accepted as in-order.
+
