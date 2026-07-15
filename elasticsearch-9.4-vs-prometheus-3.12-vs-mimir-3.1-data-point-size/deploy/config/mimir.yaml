@@ -39,11 +39,14 @@ server:
 distributor:
   remote_timeout: 2m
 
-
 limits:
   out_of_order_time_window: 270m
   # Remove ingestion rate cap — default 10k samples/s throttles replay ingest
   ingestion_rate: 10000000
   ingestion_burst_size: 100000000
   max_global_series_per_user: 0
+  # Promote OTel resource attributes to labels on ingested series.
+  # See: https://grafana.com/docs/grafana-cloud/send-data/otlp/otlp-format-considerations/#promote-opentelemetry-labels
+  # and https://grafana.com/docs/mimir/latest/configure/configuration-parameters/#limits
+  promote_otel_resource_attributes: host.name,host.arch,host.ip,host.mac,host.cpu.vendor.id,host.cpu.family,host.cpu.model.id,host.cpu.model.name,host.cpu.stepping,host.cpu.cache.l2.size,os.type,os.description
 
