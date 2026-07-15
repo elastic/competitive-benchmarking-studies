@@ -33,6 +33,7 @@ def otel_config(scenario: BenchmarkScenario, debug: bool = False) -> str:
     # Prometheus 3.x does not reliably decompress gzip on OTLP requests; ES and
     # Mimir handle large gzip batches without issue.
     compression = ENGINE == "elasticsearch"
+    drop_host_ip_mac = os.environ.get("DROP_HOST_IP_MAC", "").lower() in ("1", "true", "yes")
     return _jinja_env.get_template("otelcol.yaml.j2").render(
         engine=ENGINE,
         seed=scenario.seed,
@@ -43,6 +44,7 @@ def otel_config(scenario: BenchmarkScenario, debug: bool = False) -> str:
         compression=compression,
         debug=debug,
         clickhouse_database=CLICKHOUSE_DATABASE,
+        drop_host_ip_mac=drop_host_ip_mac,
     )
 
 
