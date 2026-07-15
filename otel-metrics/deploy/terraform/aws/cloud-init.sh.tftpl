@@ -55,7 +55,7 @@ clone_url="https://github.com/${repo}.git"
 %{ endif ~}
 git clone --depth 1 "$clone_url" --branch '${branch}' ${nvme_mount}/repo
 
-cd ${nvme_mount}/repo/elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size
+cd ${nvme_mount}/repo/otel-metrics
 
 ${run_command} 2>&1 | tee ${nvme_mount}/benchmark.log
 

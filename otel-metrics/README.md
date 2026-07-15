@@ -274,7 +274,7 @@ Terraform prints `instance_id`, `public_ip`, and a ready-to-run `console_log_com
 
 ### Retrieving results
 
-The benchmark log is written to `<nvme_mount>/benchmark.log`, and the JSON results land in `<nvme_mount>/repo/elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/results/`.
+The benchmark log is written to `<nvme_mount>/benchmark.log`, and the JSON results land in `<nvme_mount>/repo/otel-metrics/results/`.
 
 If you didn't set `key_name`, you can still pull files off the instance via EC2 Instance Connect — push a short-lived key and `scp` with it:
 
@@ -290,7 +290,7 @@ aws ec2-instance-connect send-ssh-public-key \
   --availability-zone "$AZ" --ssh-public-key file:///tmp/ec2-ic-key.pub
 
 scp -i /tmp/ec2-ic-key ubuntu@"$PUBLIC_IP":/data/benchmark.log .
-scp -i /tmp/ec2-ic-key "ubuntu@$PUBLIC_IP:/data/repo/elasticsearch-9.4-vs-prometheus-3.12-vs-mimir-3.1-data-point-size/results/*.json" ./results/
+scp -i /tmp/ec2-ic-key "ubuntu@$PUBLIC_IP:/data/repo/otel-metrics/results/*.json" ./results/
 ```
 
 Remember to `terraform destroy` when you're done, unless `shutdown = true` was set (which terminates the instance automatically, since `instance_initiated_shutdown_behavior` is `terminate`).
