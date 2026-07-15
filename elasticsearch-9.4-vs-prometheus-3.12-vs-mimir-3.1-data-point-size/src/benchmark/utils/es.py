@@ -82,11 +82,18 @@ def es_doc_count(data_stream: str) -> int:
 def es_start_trial_license() -> None:
     """Start the free 30-day trial license (idempotent) — required for
     synthetic _source in TSDB."""
+    status, body = _es_request("GET", "/_license")
+    if status == 200 and isinstance(body, dict):
+        license_type = body.get("license", {}).get("type", "")
+        if license_type != "basic":
+            print(f"✓ ES license already active ({license_type})")
+            return
+
     path = "/_license/start_trial?acknowledge=true"
     status, body = _es_request("POST", path)
     if status != 200:
         raise RuntimeError(f"POST {path} failed: HTTP {status} {body}")
-    print(f"✓ Trial license: {body.get('trial_was_started', 'already active')}")
+    print("✓ Trial license: started")
 
 
 def es_apply_component_template(path: str, name: str) -> None:
