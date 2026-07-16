@@ -42,7 +42,7 @@ resource "aws_instance" "benchmark" {
   subnet_id                            = var.subnet_id
   vpc_security_group_ids               = length(var.security_group_ids) > 0 ? var.security_group_ids : null
   associate_public_ip_address          = var.subnet_id != null || var.key_name != null
-  instance_initiated_shutdown_behavior = "terminate"
+  instance_initiated_shutdown_behavior = var.terminate_on_shutdown ? "terminate" : "stop"
 
   user_data = templatefile("${path.module}/cloud-init.sh.tftpl", {
     repo         = var.repo

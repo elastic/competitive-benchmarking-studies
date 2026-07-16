@@ -38,7 +38,13 @@ variable "run_command" {
 variable "shutdown" {
   description = "Shut down (and terminate) the instance when the benchmark finishes"
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "terminate_on_shutdown" {
+  description = "Terminate the instance on shutdown (true) or just stop it (false)"
+  type        = bool
+  default     = true
 }
 
 variable "key_name" {
