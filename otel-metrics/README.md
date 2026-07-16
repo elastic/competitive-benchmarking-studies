@@ -266,7 +266,8 @@ Key variables (see `variables.tf` for the full list and defaults):
 | `machine` | `c8gd.4xlarge` | EC2 instance type (must have local NVMe storage) |
 | `nvme_mount` | `/data` | Mount point for the local NVMe device |
 | `run_command` | `make setup run` | Full command executed on the instance after cloning — override to run a single engine, e.g. `make setup elasticsearch` |
-| `shutdown` | `false` | Terminate the instance automatically once `run_command` finishes |
+| `shutdown` | `true` | Shut down the instance automatically once `run_command` finishes — set to `false` if you need to SSH in and inspect the instance after the run |
+| `terminate_on_shutdown` | `true` | Terminate the instance on shutdown (`true`) or merely stop it (`false`) — set to `false` to preserve the EBS root volume and instance state for later inspection |
 | `key_name` | `null` | EC2 key pair for SSH access (optional — see below if omitted) |
 | `tags` | `{}` | Additional tags to apply to the instance |
 
@@ -275,6 +276,8 @@ Terraform prints `instance_id`, `public_ip`, and a ready-to-run `console_log_com
 ### Retrieving results
 
 The benchmark log is written to `<nvme_mount>/benchmark.log`, and the JSON results land in `<nvme_mount>/repo/otel-metrics/results/`.
+
+> **Note:** `scp` requires the instance to be running. To keep it alive after the benchmark finishes, set `shutdown = false` or `terminate_on_shutdown = false` (the latter shuts the instance down but keeps it stopped and recoverable).
 
 If you didn't set `key_name`, you can still pull files off the instance via EC2 Instance Connect — push a short-lived key and `scp` with it:
 
@@ -293,4 +296,4 @@ scp -i /tmp/ec2-ic-key ubuntu@"$PUBLIC_IP":/data/benchmark.log .
 scp -i /tmp/ec2-ic-key "ubuntu@$PUBLIC_IP:/data/repo/otel-metrics/results/*.json" ./results/
 ```
 
-Remember to `terraform destroy` when you're done, unless `shutdown = true` was set (which terminates the instance automatically, since `instance_initiated_shutdown_behavior` is `terminate`).
+The instance terminates automatically when the benchmark finishes (`shutdown = true` by default). If you set `shutdown = false` for debugging, remember to run `terraform destroy` when you're done to avoid ongoing charges. In either case, the console output (cloud-init log) remains retrievable via `aws ec2 get-console-output` for some time after termination.
