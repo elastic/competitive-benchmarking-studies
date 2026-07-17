@@ -75,7 +75,7 @@ targets:
 
       - name: sum_rate_sys_cpu_time_large_clause_5m
         body: |
-          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS SUM(RATE(system.cpu.time)) BY host.name, host.ip, host.mac, host.arch, attributes.cpu, attributes.state, host.cpu.cache.l2.size, host.cpu.model.id, host.cpu.stepping, host.cpu.vendor.id, TBUCKET(5 minutes)"}
+          {"query": "TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{ tend_minus_240m }}\" AND @timestamp <= \"{{ tend }}\" | STATS SUM(RATE(system.cpu.time)) BY host.name, host.arch, attributes.cpu, attributes.state, host.cpu.cache.l2.size, host.cpu.model.id, host.cpu.stepping, host.cpu.vendor.id, TBUCKET(5 minutes)"}
 
       - name: sum_lot_filesystem_usage_top5
         body: |
@@ -133,7 +133,7 @@ targets:
         body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-.*"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
 
       - name: sum_rate_sys_cpu_time_large_clause_5m
-        body: "query=sum by (host_name, host_ip, host_mac, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time_seconds_total[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
+        body: "query=sum by (host_name, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time_seconds_total[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
 
       - name: sum_lot_filesystem_usage_top5
         body: 'query=topk(5, sum by (host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state=~"used|free"}[5m])))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
@@ -186,7 +186,7 @@ targets:
         body: 'query=avg by (host_name)(avg_over_time(system_cpu_load_average_1m{host_name=~"host-.*"}[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
 
       - name: sum_rate_sys_cpu_time_large_clause_5m
-        body: "query=sum by (host_name, host_ip, host_mac, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
+        body: "query=sum by (host_name, host_arch, cpu, state, host_cpu_cache_l2_size, host_cpu_model_id, host_cpu_stepping, host_cpu_vendor_id) (rate(system_cpu_time[5m]))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}"
 
       - name: sum_lot_filesystem_usage_top5
         body: 'query=topk(5, sum by (host_name, mountpoint) (last_over_time(system_filesystem_usage{state=~"used|free"}[5m])))&step=5m&start={{ tend_minus_240m_unix }}&end={{ tend_unix }}'
@@ -248,7 +248,7 @@ targets:
 
       - name: sum_rate_sys_cpu_time_large_clause_5m
         body: |
-          WITH rate_calculation AS (SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS t, HostName, ResourceAttributes['host.ip'] AS host_ip, ResourceAttributes['host.mac'] AS host_mac, ResourceAttributes['host.arch'] AS host_arch, ResourceAttributes['cpu'] AS cpu, ResourceAttributes['state'] AS state, ResourceAttributes['host.cpu.cache.l2.size'] AS cache_l2_size, ResourceAttributes['host.cpu.model.id'] AS model_id, ResourceAttributes['host.cpu.stepping'] AS stepping, ResourceAttributes['host.cpu.vendor.id'] AS vendor_id, (MAX(Value) - MIN(Value)) / 300 AS calculated_rate FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName, host_ip, host_mac, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id) SELECT t, HostName, host_ip, host_mac, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id, SUM(calculated_rate) AS total_cpu_rate FROM rate_calculation GROUP BY t, HostName, host_ip, host_mac, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id ORDER BY t, HostName
+          WITH rate_calculation AS (SELECT toStartOfInterval(toDateTime(TimeUnix), INTERVAL 5 MINUTE) AS t, HostName, ResourceAttributes['host.arch'] AS host_arch, ResourceAttributes['cpu'] AS cpu, ResourceAttributes['state'] AS state, ResourceAttributes['host.cpu.cache.l2.size'] AS cache_l2_size, ResourceAttributes['host.cpu.model.id'] AS model_id, ResourceAttributes['host.cpu.stepping'] AS stepping, ResourceAttributes['host.cpu.vendor.id'] AS vendor_id, (MAX(Value) - MIN(Value)) / 300 AS calculated_rate FROM default.otel_metrics_sum WHERE MetricName = 'system.cpu.time' AND toDateTime(TimeUnix) >= toDateTime({{ tend_minus_240m_unix }}) AND toDateTime(TimeUnix) < toDateTime({{ tend_unix }}) GROUP BY t, HostName, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id) SELECT t, HostName, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id, SUM(calculated_rate) AS total_cpu_rate FROM rate_calculation GROUP BY t, HostName, host_arch, cpu, state, cache_l2_size, model_id, stepping, vendor_id ORDER BY t, HostName
 
       - name: sum_lot_filesystem_usage_top5
         body: |

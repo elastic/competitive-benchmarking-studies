@@ -4,12 +4,12 @@ Measures bytes per data point for four time-series engines after ingesting ident
 
 ## Results
 
-| Engine        | Version | Data Points | Size     | Bytes/DP | Elapsed | EPS     |
-|---------------|---------|-------------|----------|----------|---------|---------|
-| Elasticsearch | 9.4.2   | 225,180,000 | 801.5 MB | 3.73     | 14m17s  | 262,480 |
-| Prometheus    | 3.12.0  | 225,180,000 | 828.9 MB | 3.86     | 10m27s  | 358,972 |
-| Mimir         | 3.1.1   | 225,180,000 | 838.7 MB | 3.91     | 10m45s  | 348,854 |
-| ClickHouse    | 26.5.1  | —           | —        | —        | —       | —       |
+| Engine        | Version   | Run At               |   Data Points | Size      |   Bytes/DP | Elapsed   |       EPS |
+|---------------|-----------|----------------------|---------------|-----------|------------|-----------|-----------|
+| elasticsearch | 9.4.2     | 2026-07-17T07:20:02Z |   225,180,000 | 627.9 MB  |       2.92 | 10m56s    |   342,911 |
+| prometheus    | 3.12.0    | 2026-07-17T08:08:44Z |   225,180,000 | 829.5 MB  |       3.86 | 2m08s     | 1,757,640 |
+| mimir         | 3.1.1     | 2026-07-17T08:56:14Z |   225,180,000 | 1017.3 MB |       4.74 | 3m46s     |   993,997 |
+| clickhouse    | 26.5.1    | 2026-07-17T09:53:15Z |   225,180,000 | 2.50 GB   |      11.94 | 12m43s    |   294,941 |
 
 Elasticsearch's advantage comes from: TSDB columnar codec, synthetic `_source`, synthetic document IDs, doc value skippers (no inverted indices on dimensions), and trimmed sequence numbers — all applied automatically via the built-in OTel index template.
 
@@ -19,80 +19,101 @@ Elapsed/EPS measure the `metricsgenreceiver` ingestion run only (wall-clock time
 
 Each engine ran the same 12 PromQL/ES|QL/ClickHouse-SQL-equivalent queries (`queries.yml`) via `vegeta` at a fixed low rate, over the same time range as the ingested data. All queries returned 100% success across all engines.
 
-| Query                                       | Elasticsearch (p50/p95/p99 ms) | Prometheus (p50/p95/p99 ms)   | Mimir (p50/p95/p99 ms)        |
-|----------------------------------------------|---------------------------------|--------------------------------|---------------------------------|
-| avg_avgot_memory_by_host_1h                   | 26.0 / 29.8 / 32.5               | 545.8 / 554.1 / 556.1           | 905.4 / 915.9 / 926.0            |
-| avg_avgot_memory_by_host_5m                   | 42.8 / 46.6 / 48.2               | 508.9 / 513.3 / 514.7           | 837.0 / 847.2 / 853.4            |
-| avg_avgot_memory_by_host_30m_window_90m       | 29.6 / 33.5 / 34.3               | 590.1 / 593.2 / 594.0           | 907.9 / 918.0 / 923.1            |
-| avg_rate_cpu_by_host_1h                       | 143.8 / 147.0 / 148.3            | 3518.7 / 3557.6 / 3560.1        | 4251.7 / 4263.6 / 5493.0         |
-| avg_rate_cpu_by_host_5m                       | 244.9 / 249.1 / 250.8            | 3262.1 / 3273.2 / 3279.7        | 3921.0 / 3929.1 / 3942.0         |
-| avg_rate_cpu_by_host_30m_window_90m           | 171.3 / 174.6 / 176.0            | 3615.1 / 3658.3 / 3658.7        | 4381.7 / 4392.0 / 4393.6         |
-| avg_avgot_cpu_load_1m_filtered_by_hosts_5m    | 7.0 / 7.4 / 8.1                  | 3.2 / 3.4 / 3.7                 | 5.3 / 5.4 / 5.6                  |
-| avg_avgot_cpu_load_1m_prefix_by_hosts_5m      | 22.0 / 22.6 / 24.3               | 87.0 / 88.8 / 90.3              | 112.5 / 115.7 / 117.0            |
-| sum_rate_sys_cpu_time_large_clause_5m         | 685.5 / 695.2 / 703.8            | 3379.1 / 3394.6 / 3402.4        | 4252.0 / 4262.8 / 4264.2         |
-| sum_lot_filesystem_usage_top5                 | 25.7 / 27.9 / 29.6               | 440.8 / 444.8 / 445.9           | 547.0 / 551.6 / 552.6            |
-| avgot_memory_by_tbucket_1h                    | 76.1 / 78.0 / 78.9               | 549.6 / 558.3 / 560.1           | 685.0 / 690.4 / 694.0            |
-| rate_cpu_by_tbucket_1h                        | 271.6 / 278.2 / 285.7            | 3520.7 / 3576.7 / 3579.7        | 4344.1 / 4355.0 / 4355.8         |
+
+| Query                                      | elasticsearch (p50/p95/p99 ms)   | prometheus (p50/p95/p99 ms)   | mimir (p50/p95/p99 ms)   | clickhouse (p50/p95/p99 ms)   |
+|--------------------------------------------|----------------------------------|-------------------------------|--------------------------|-------------------------------|
+| avg_avgot_memory_by_host_1h                | 26.0/30.4/32.7                   | 596.9/604.4/608.1             | 1744.6/1778.2/1789.2     | 118.6/125.0/130.5             |
+| avg_avgot_memory_by_host_5m                | 42.2/46.7/49.0                   | 552.0/558.8/561.4             | 1584.9/1614.7/1633.3     | 125.2/132.0/135.1             |
+| avg_avgot_memory_by_host_30m_window_90m    | 29.7/34.0/35.1                   | 640.8/646.5/651.7             | 1748.6/1785.2/1807.0     | 125.1/131.9/134.6             |
+| avg_rate_cpu_by_host_1h                    | 139.6/147.9/150.0                | 3854.2/3882.6/3902.1          | 5068.1/7443.6/8492.6     | 509.8/536.8/543.9             |
+| avg_rate_cpu_by_host_5m                    | 241.3/253.5/260.3                | 3567.3/3583.2/3585.9          | 4654.7/4668.5/4669.3     | 1480.3/1504.1/1511.9          |
+| avg_rate_cpu_by_host_30m_window_90m        | 171.0/180.7/186.7                | 3976.6/3986.5/3994.3          | 5207.0/5221.5/5228.6     | 529.5/554.1/562.2             |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m | 7.3/8.3/9.0                      | 3.4/3.7/4.8                   | 6.1/6.5/7.6              | 24.4/26.1/27.2                |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m   | 22.4/24.4/25.5                   | 94.1/96.0/96.9                | 130.6/133.9/134.6        | 72.3/76.3/78.7                |
+| sum_rate_sys_cpu_time_large_clause_5m      | 368.8/391.3/398.4                | 3656.9/3668.4/3675.6          | 4972.4/4984.6/4988.8     | 5204.0/5333.7/5369.4          |
+| sum_lot_filesystem_usage_top5              | 24.9/26.9/28.5                   | 482.5/486.3/487.3             | 661.7/664.6/666.1        | 683.1/698.9/712.3             |
+| avgot_memory_by_tbucket_1h                 | 44.1/46.9/48.1                   | 593.8/600.8/603.3             | 800.3/804.2/806.8        | 1271.3/1312.4/1322.0          |
+| rate_cpu_by_tbucket_1h                     | 196.7/206.2/211.8                | 3843.1/3891.4/3896.4          | 5119.1/5136.3/5136.9     | 6971.7/7116.2/7121.4          |
 
 Per-engine breakdown with RPS and success rate:
 
 <details>
 <summary>Elasticsearch</summary>
 
-| Query                                          | p50 ms | p95 ms | p99 ms | RPS | OK% |
-|-------------------------------------------------|-------:|-------:|-------:|----:|----:|
-| avg_avgot_memory_by_host_1h                      |   26.0 |   29.8 |   32.5 | 3.0 | 100 |
-| avg_avgot_memory_by_host_5m                      |   42.8 |   46.6 |   48.2 | 3.0 | 100 |
-| avg_avgot_memory_by_host_30m_window_90m          |   29.6 |   33.5 |   34.3 | 3.0 | 100 |
-| avg_rate_cpu_by_host_1h                          |  143.8 |  147.0 |  148.3 | 3.0 | 100 |
-| avg_rate_cpu_by_host_5m                          |  244.9 |  249.1 |  250.8 | 3.0 | 100 |
-| avg_rate_cpu_by_host_30m_window_90m              |  171.3 |  174.6 |  176.0 | 3.0 | 100 |
-| avg_avgot_cpu_load_1m_filtered_by_hosts_5m       |    7.0 |    7.4 |    8.1 | 3.0 | 100 |
-| avg_avgot_cpu_load_1m_prefix_by_hosts_5m         |   22.0 |   22.6 |   24.3 | 3.0 | 100 |
-| sum_rate_sys_cpu_time_large_clause_5m            |  685.5 |  695.2 |  703.8 | 1.5 | 100 |
-| sum_lot_filesystem_usage_top5                    |   25.7 |   27.9 |   29.6 | 3.0 | 100 |
-| avgot_memory_by_tbucket_1h                       |   76.1 |   78.0 |   78.9 | 3.0 | 100 |
-| rate_cpu_by_tbucket_1h                           |  271.6 |  278.2 |  285.7 | 3.0 | 100 |
+| Query | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h | 26.0 | 30.4 | 32.7 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m | 42.2 | 46.7 | 49.0 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m | 29.7 | 34.0 | 35.1 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h | 139.6 | 147.9 | 150.0 | 3.0 | 100 |
+| avg_rate_cpu_by_host_5m | 241.3 | 253.5 | 260.3 | 3.0 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m | 171.0 | 180.7 | 186.7 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m | 7.3 | 8.3 | 9.0 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m | 22.4 | 24.4 | 25.5 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m | 368.8 | 391.3 | 398.4 | 2.7 | 100 |
+| sum_lot_filesystem_usage_top5 | 24.9 | 26.9 | 28.5 | 3.0 | 100 |
+| avgot_memory_by_tbucket_1h | 44.1 | 46.9 | 48.1 | 3.0 | 100 |
+| rate_cpu_by_tbucket_1h | 196.7 | 206.2 | 211.8 | 3.0 | 100 |
 
 </details>
 
 <details>
 <summary>Prometheus</summary>
 
-| Query                                          | p50 ms | p95 ms | p99 ms | RPS | OK% |
-|-------------------------------------------------|-------:|-------:|-------:|----:|----:|
-| avg_avgot_memory_by_host_1h                      |  545.8 |  554.1 |  556.1 | 3.0 | 100 |
-| avg_avgot_memory_by_host_5m                      |  508.9 |  513.3 |  514.7 | 3.0 | 100 |
-| avg_avgot_memory_by_host_30m_window_90m          |  590.1 |  593.2 |  594.0 | 3.0 | 100 |
-| avg_rate_cpu_by_host_1h                          | 3518.7 | 3557.6 | 3560.1 | 0.3 | 100 |
-| avg_rate_cpu_by_host_5m                          | 3262.1 | 3273.2 | 3279.7 | 0.3 | 100 |
-| avg_rate_cpu_by_host_30m_window_90m              | 3615.1 | 3658.3 | 3658.7 | 0.3 | 100 |
-| avg_avgot_cpu_load_1m_filtered_by_hosts_5m       |    3.2 |    3.4 |    3.7 | 3.0 | 100 |
-| avg_avgot_cpu_load_1m_prefix_by_hosts_5m         |   87.0 |   88.8 |   90.3 | 3.0 | 100 |
-| sum_rate_sys_cpu_time_large_clause_5m            | 3379.1 | 3394.6 | 3402.4 | 0.3 | 100 |
-| sum_lot_filesystem_usage_top5                    |  440.8 |  444.8 |  445.9 | 2.3 | 100 |
-| avgot_memory_by_tbucket_1h                       |  549.6 |  558.3 |  560.1 | 3.0 | 100 |
-| rate_cpu_by_tbucket_1h                           | 3520.7 | 3576.7 | 3579.7 | 0.3 | 100 |
+| Query | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h | 596.9 | 604.4 | 608.1 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m | 552.0 | 558.8 | 561.4 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m | 640.8 | 646.5 | 651.7 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h | 3854.2 | 3882.6 | 3902.1 | 0.3 | 100 |
+| avg_rate_cpu_by_host_5m | 3567.3 | 3583.2 | 3585.9 | 0.3 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m | 3976.6 | 3986.5 | 3994.3 | 0.3 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m | 3.4 | 3.7 | 4.8 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m | 94.1 | 96.0 | 96.9 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m | 3656.9 | 3668.4 | 3675.6 | 0.3 | 100 |
+| sum_lot_filesystem_usage_top5 | 482.5 | 486.3 | 487.3 | 2.1 | 100 |
+| avgot_memory_by_tbucket_1h | 593.8 | 600.8 | 603.3 | 3.0 | 100 |
+| rate_cpu_by_tbucket_1h | 3843.1 | 3891.4 | 3896.4 | 0.3 | 100 |
 
 </details>
 
 <details>
 <summary>Mimir</summary>
 
-| Query                                          | p50 ms | p95 ms | p99 ms | RPS | OK% |
-|-------------------------------------------------|-------:|-------:|-------:|----:|----:|
-| avg_avgot_memory_by_host_1h                      |  905.4 |  915.9 |  926.0 | 3.0 | 100 |
-| avg_avgot_memory_by_host_5m                      |  837.0 |  847.2 |  853.4 | 3.0 | 100 |
-| avg_avgot_memory_by_host_30m_window_90m          |  907.9 |  918.0 |  923.1 | 3.0 | 100 |
-| avg_rate_cpu_by_host_1h                          | 4251.7 | 4263.6 | 5493.0 | 0.2 | 100 |
-| avg_rate_cpu_by_host_5m                          | 3921.0 | 3929.1 | 3942.0 | 0.3 | 100 |
-| avg_rate_cpu_by_host_30m_window_90m              | 4381.7 | 4392.0 | 4393.6 | 0.2 | 100 |
-| avg_avgot_cpu_load_1m_filtered_by_hosts_5m       |    5.3 |    5.4 |    5.6 | 3.0 | 100 |
-| avg_avgot_cpu_load_1m_prefix_by_hosts_5m         |  112.5 |  115.7 |  117.0 | 3.0 | 100 |
-| sum_rate_sys_cpu_time_large_clause_5m            | 4252.0 | 4262.8 | 4264.2 | 0.2 | 100 |
-| sum_lot_filesystem_usage_top5                    |  547.0 |  551.6 |  552.6 | 1.8 | 100 |
-| avgot_memory_by_tbucket_1h                       |  685.0 |  690.4 |  694.0 | 3.0 | 100 |
-| rate_cpu_by_tbucket_1h                           | 4344.1 | 4355.0 | 4355.8 | 0.2 | 100 |
+| Query | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h | 1744.6 | 1778.2 | 1789.2 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m | 1584.9 | 1614.7 | 1633.3 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m | 1748.6 | 1785.2 | 1807.0 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h | 5068.1 | 7443.6 | 8492.6 | 0.2 | 100 |
+| avg_rate_cpu_by_host_5m | 4654.7 | 4668.5 | 4669.3 | 0.2 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m | 5207.0 | 5221.5 | 5228.6 | 0.2 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m | 6.1 | 6.5 | 7.6 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m | 130.6 | 133.9 | 134.6 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m | 4972.4 | 4984.7 | 4988.8 | 0.2 | 100 |
+| sum_lot_filesystem_usage_top5 | 661.7 | 664.6 | 666.1 | 1.5 | 100 |
+| avgot_memory_by_tbucket_1h | 800.3 | 804.2 | 806.8 | 3.0 | 100 |
+| rate_cpu_by_tbucket_1h | 5119.1 | 5136.3 | 5136.9 | 0.2 | 100 |
+
+</details>
+
+<details>
+<summary>ClickHouse</summary>
+
+| Query | p50 ms | p95 ms | p99 ms | RPS | OK% |
+|-------|-------:|-------:|-------:|----:|----:|
+| avg_avgot_memory_by_host_1h | 118.6 | 125.0 | 130.5 | 3.0 | 100 |
+| avg_avgot_memory_by_host_5m | 125.2 | 132.0 | 135.1 | 3.0 | 100 |
+| avg_avgot_memory_by_host_30m_window_90m | 125.1 | 131.9 | 134.6 | 3.0 | 100 |
+| avg_rate_cpu_by_host_1h | 509.8 | 536.8 | 543.9 | 2.0 | 100 |
+| avg_rate_cpu_by_host_5m | 1480.3 | 1504.1 | 1511.9 | 0.7 | 100 |
+| avg_rate_cpu_by_host_30m_window_90m | 529.5 | 554.1 | 562.2 | 1.9 | 100 |
+| avg_avgot_cpu_load_1m_filtered_by_hosts_5m | 24.4 | 26.1 | 27.2 | 3.0 | 100 |
+| avg_avgot_cpu_load_1m_prefix_by_hosts_5m | 72.3 | 76.3 | 78.7 | 3.0 | 100 |
+| sum_rate_sys_cpu_time_large_clause_5m | 5204.0 | 5333.7 | 5369.4 | 0.2 | 100 |
+| sum_lot_filesystem_usage_top5 | 683.1 | 698.9 | 712.3 | 1.5 | 100 |
+| avgot_memory_by_tbucket_1h | 1271.3 | 1312.4 | 1322.0 | 0.8 | 100 |
+| rate_cpu_by_tbucket_1h | 6971.7 | 7116.2 | 7121.4 | 0.1 | 100 |
 
 </details>
 

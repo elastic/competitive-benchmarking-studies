@@ -1,0 +1,122 @@
+{
+  "engine": "clickhouse",
+  "version": "26.5.1",
+  "run_at": 1784281995,
+  "benchmark": "duration_270m-query_240m-scale_100",
+  "datapoints": 225180000,
+  "start_ts": 1784265031,
+  "end_ts": 1784281231,
+  "elapsed_seconds": 763.5,
+  "eps": 294941,
+  "queries": [
+    {
+      "name": "avg_avgot_memory_by_host_1h",
+      "p50_ms": 118.622,
+      "p95_ms": 124.981,
+      "p99_ms": 130.544,
+      "mean_ms": 119.267,
+      "throughput_rps": 3.004,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_memory_by_host_5m",
+      "p50_ms": 125.225,
+      "p95_ms": 132.004,
+      "p99_ms": 135.147,
+      "mean_ms": 125.505,
+      "throughput_rps": 3.003,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_memory_by_host_30m_window_90m",
+      "p50_ms": 125.117,
+      "p95_ms": 131.95,
+      "p99_ms": 134.606,
+      "mean_ms": 125.667,
+      "throughput_rps": 3.003,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_rate_cpu_by_host_1h",
+      "p50_ms": 509.793,
+      "p95_ms": 536.781,
+      "p99_ms": 543.917,
+      "mean_ms": 512.101,
+      "throughput_rps": 1.953,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_rate_cpu_by_host_5m",
+      "p50_ms": 1480.331,
+      "p95_ms": 1504.106,
+      "p99_ms": 1511.896,
+      "mean_ms": 1480.305,
+      "throughput_rps": 0.676,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_rate_cpu_by_host_30m_window_90m",
+      "p50_ms": 529.46,
+      "p95_ms": 554.068,
+      "p99_ms": 562.22,
+      "mean_ms": 531.55,
+      "throughput_rps": 1.881,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_cpu_load_1m_filtered_by_hosts_5m",
+      "p50_ms": 24.419,
+      "p95_ms": 26.123,
+      "p99_ms": 27.175,
+      "mean_ms": 24.524,
+      "throughput_rps": 3.005,
+      "success_pct": 100
+    },
+    {
+      "name": "avg_avgot_cpu_load_1m_prefix_by_hosts_5m",
+      "p50_ms": 72.266,
+      "p95_ms": 76.283,
+      "p99_ms": 78.713,
+      "mean_ms": 72.613,
+      "throughput_rps": 3.004,
+      "success_pct": 100
+    },
+    {
+      "name": "sum_rate_sys_cpu_time_large_clause_5m",
+      "p50_ms": 5204.037,
+      "p95_ms": 5333.731,
+      "p99_ms": 5369.364,
+      "mean_ms": 5207.948,
+      "throughput_rps": 0.192,
+      "success_pct": 100
+    },
+    {
+      "name": "sum_lot_filesystem_usage_top5",
+      "p50_ms": 683.145,
+      "p95_ms": 698.919,
+      "p99_ms": 712.295,
+      "mean_ms": 683.643,
+      "throughput_rps": 1.463,
+      "success_pct": 100
+    },
+    {
+      "name": "avgot_memory_by_tbucket_1h",
+      "p50_ms": 1271.32,
+      "p95_ms": 1312.367,
+      "p99_ms": 1321.993,
+      "mean_ms": 1273.831,
+      "throughput_rps": 0.785,
+      "success_pct": 100
+    },
+    {
+      "name": "rate_cpu_by_tbucket_1h",
+      "p50_ms": 6971.7,
+      "p95_ms": 7116.24,
+      "p99_ms": 7121.386,
+      "mean_ms": 6985.153,
+      "throughput_rps": 0.143,
+      "success_pct": 100
+    }
+  ],
+  "size_bytes": 2688853210
+}
