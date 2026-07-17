@@ -116,6 +116,7 @@ Per-engine breakdown with RPS and success rate:
 | rate_cpu_by_tbucket_1h | 6971.7 | 7116.2 | 7121.4 | 0.1 | 100 |
 
 </details>
+
 ## Prerequisites
 
 - Docker (memory allocated to Docker Desktop/engine must be at least `.env`'s `CONTAINER_MEMORY_LIMIT`, since one engine's container runs at a time)
